@@ -16,6 +16,8 @@ const { getText, getLanguagePrompt } = require('./utils/language');
 const { getReportInstructionMessage } = require('./utils/deeplink');
 const { getTwilioClient, sendWhatsAppMessage } = require('./utils/whatsapp');
 const { getUserSession, updateUserSession } = require('./utils/sessionManager');
+// const { Division } = require('./models/Division');
+// const { insertDighiAlandiDivision } = require('./models/Division');
 
 // Import database connection
 const connectDB = require('./config/database');
@@ -23,11 +25,16 @@ const connectDB = require('./config/database');
 // Import models
 const Query = require('./models/Query');
 const Session = require('./models/Session');
+const { Division } = require('./models/Division');
+
 
 // Import routes
 const uploadRoutes = require('./routes/upload');
 const queryRoutes = require('./routes/queryRoutes');
 const dashboardRoutes = require('./routes/dashboardRoutes');
+const authRoutes = require('./routes/authRoutes');
+
+
 
 // Check for required environment variables
 const requiredEnvVars = [
@@ -49,6 +56,86 @@ if (missingEnvVars.length > 0) {
   console.error('Please check your .env file');
 } else {
   console.log('All required environment variables found');
+}
+
+// Utility function to find which division a location belongs to
+async function findDivisionForLocation(latitude, longitude) {
+  try {
+    console.log(`Checking division for location: ${latitude}, ${longitude}`);
+    
+    // Convert to proper number types
+    const lat = parseFloat(latitude);
+    const lng = parseFloat(longitude);
+    
+    if (isNaN(lat) || isNaN(lng)) {
+      console.error('Invalid coordinates:', latitude, longitude);
+      return null;
+    }
+    
+    // Get all divisions
+    const allDivisions = await Division.find();
+    console.log(`Found ${allDivisions.length} divisions to check`);
+    
+    // Manual check for each division
+    for (const division of allDivisions) {
+      console.log(`Checking division: ${division.name}`);
+      
+      // Make sure the division has proper boundaries
+      if (!division.boundaries || !division.boundaries.coordinates || 
+          !Array.isArray(division.boundaries.coordinates) || 
+          division.boundaries.coordinates.length === 0) {
+        console.log(`Division ${division.name} has invalid boundaries format`);
+        continue;
+      }
+      
+      const coordinates = division.boundaries.coordinates[0];
+      console.log(`Division has ${coordinates.length} boundary points`);
+      
+      // Check if point is within polygon using ray casting algorithm
+      // IMPORTANT: Note that we're passing coordinates as [lng, lat] to match the DB format
+      if (isPointInPolygon([lng, lat], coordinates)) {
+        console.log(`Found matching division: ${division.name}`);
+        return division;
+      }
+    }
+    
+    console.log('No division found for this location.');
+    return null;
+  } catch (error) {
+    console.error('Error finding division for location:', error);
+    return null;
+  }
+}
+
+// Improved ray casting algorithm to check if point is in polygon
+// This handles the longitude/latitude format correctly
+function isPointInPolygon(point, polygon) {
+  // point is [lng, lat]
+  const x = point[0]; // longitude
+  const y = point[1]; // latitude
+  
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    // Get points for current polygon edge
+    // Each point in polygon is also [lng, lat]
+    const xi = polygon[i][0]; // longitude of point i
+    const yi = polygon[i][1]; // latitude of point i
+    const xj = polygon[j][0]; // longitude of point j
+    const yj = polygon[j][1]; // latitude of point j
+    
+    // Handle points with third coordinate (elevation) if present
+    const xi_clean = Array.isArray(xi) ? xi[0] : xi;
+    const yi_clean = Array.isArray(yi) ? yi[1] : yi;
+    const xj_clean = Array.isArray(xj) ? xj[0] : xj;
+    const yj_clean = Array.isArray(yj) ? yj[1] : yj;
+    
+    // Check if ray from point crosses edge
+    const intersect = ((yi_clean > y) !== (yj_clean > y)) && 
+                     (x < (xj_clean - xi_clean) * (y - yi_clean) / (yj_clean - yi_clean) + xi_clean);
+    if (intersect) inside = !inside;
+  }
+  
+  return inside;
 }
 
 // Initialize Express app
@@ -78,9 +165,10 @@ app.use((req, res, next) => {
 });
 
 // Use routes
-app.use('/api/upload', uploadRoutes);
+app.use('/api/auth', authRoutes);
 app.use('/api/queries', queryRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/uploads', uploadRoutes);
 
 // Get Twilio client
 const client = getTwilioClient();
@@ -164,6 +252,7 @@ app.get('/capture.html', (req, res) => {
 });
 
 // Endpoint to handle reports from the capture page
+// Replace your existing /api/report endpoint with this code
 app.post('/api/report', upload.single('image'), async (req, res) => {
   try {
     console.log('----- NEW REPORT SUBMISSION -----');
@@ -174,6 +263,18 @@ app.post('/api/report', upload.single('image'), async (req, res) => {
     if (!req.file) {
       console.error('No image file found in the request');
       return res.status(400).json({ success: false, error: 'No image file found' });
+    }
+    
+    // Check if the location is within any division
+    const matchingDivision = await findDivisionForLocation(latitude, longitude);
+    
+    // If location is not in any division, reject the report
+    if (!matchingDivision) {
+      console.log('Location is outside PCMC jurisdiction');
+      return res.status(400).json({ 
+        success: false, 
+        error: 'This location appears to be outside PCMC jurisdiction. We can only process reports within PCMC limits.' 
+      });
     }
     
     // Upload image to R2
@@ -212,10 +313,10 @@ app.post('/api/report', upload.single('image'), async (req, res) => {
     const userSession = await Session.findOne({ user_id: userId });
     const userName = userSession?.user_name || 'Anonymous';
     
-    // Then update the newQuery creation
+    // Create the query with division information
     const newQuery = new Query({
       user_id: userId,
-      user_name: userName, // Include user's name
+      user_name: userName,
       query_type: queryType,
       description: description,
       photo_url: uploadedUrl,
@@ -224,11 +325,14 @@ app.post('/api/report', upload.single('image'), async (req, res) => {
         longitude: parseFloat(longitude),
         address: address || `${latitude}, ${longitude}`
       },
-      status: 'Pending'
+      status: 'Pending',
+      division: matchingDivision._id,
+      divisionName: matchingDivision.name,
+      divisionNotified: false
     });
     
     await newQuery.save();
-    console.log(`Saved ${queryType} report to database`);
+    console.log(`Saved ${queryType} report to database with division: ${matchingDivision.name}`);
     
     // Send email notification
     try {
@@ -256,6 +360,47 @@ app.post('/api/report', upload.single('image'), async (req, res) => {
       console.log('WhatsApp confirmation sent to user');
     } catch (whatsappError) {
       console.error('Error sending WhatsApp confirmation:', whatsappError);
+    }
+    
+    // 3. Notify division officers via WhatsApp if they exist
+    try {
+      if (matchingDivision.officers && matchingDivision.officers.length > 0) {
+        const activeOfficers = matchingDivision.officers.filter(officer => officer.isActive);
+        
+        // Only notify up to 2 officers
+        const officersToNotify = activeOfficers.slice(0, 2);
+        
+        if (officersToNotify.length > 0) {
+          // Format a notification message with query details and a link to resolve
+          const notificationMessage = `🚨 New Traffic Report in ${matchingDivision.name}\n\n` +
+            `Type: ${queryType}\n` +
+            `Location: ${address || 'See map link'}\n` +
+            `Description: ${description}\n\n` +
+            `To resolve this issue, click: https://trafficbuddy.pcmc.gov.in/resolve/${newQuery._id}`;
+          
+          const notifiedOfficers = [];
+          
+          // Send messages to officers
+          for (const officer of officersToNotify) {
+            await sendWhatsAppMessage(officer.phone, notificationMessage);
+            console.log(`Notification sent to officer: ${officer.name} (${officer.phone})`);
+            
+            // Record that officer was notified
+            notifiedOfficers.push({
+              phone: officer.phone,
+              timestamp: new Date()
+            });
+          }
+          
+          // Update query with information about which officers were notified
+          await Query.findByIdAndUpdate(newQuery._id, {
+            divisionNotified: true,
+            divisionOfficersNotified: notifiedOfficers
+          });
+        }
+      }
+    } catch (notificationError) {
+      console.error('Error notifying division officers:', notificationError);
     }
     
     res.status(200).json({ success: true });
@@ -398,15 +543,22 @@ app.post('/webhook', express.urlencoded({ extended: true }), async (req, res) =>
           reportType = 'General Report';
       }
       
+      // If location data is not present in the media, we can't determine division
+      // For WhatsApp reports, we still accept them but mark them for manual review
+      let matchingDivision = null;
+      
       // Create a new report with user's name
       const newQuery = new Query({
         user_id: userNumber,
-        user_name: userSession.user_name || 'Anonymous', // Include user's name
+        user_name: userSession.user_name || 'Anonymous',
         query_type: reportType,
         description: userMessage,
         photo_url: mediaUrl,
-        location: { latitude: null, longitude: null },
-        status: 'Pending'
+        location: { latitude: null, longitude: null }, // WhatsApp reports typically don't have location initially
+        status: 'Pending',
+        division: matchingDivision ? matchingDivision._id : null,
+        divisionName: matchingDivision ? matchingDivision.name : 'Pending Assignment',
+        divisionNotified: false
       });
       
       await newQuery.save();
@@ -421,7 +573,14 @@ app.post('/webhook', express.urlencoded({ extended: true }), async (req, res) =>
       }
       
       // Send confirmation to user
+      // For WhatsApp reports without location, ask user to add location information
       responseMessage = getText('REPORT_RESPONSE', userLanguage, reportType, !!mediaUrl);
+      
+      // Add suggestion to include location in future reports if it wasn't provided
+      if (!newQuery.location.latitude) {
+        responseMessage += '\n\n' + getText('LOCATION_MISSING_HINT', userLanguage);
+      }
+      
       newState = 'MENU';
       newLastOption = null;
     } else if (currentState === 'AWAITING_JOIN') {
@@ -499,6 +658,32 @@ app.post('/webhook', express.urlencoded({ extended: true }), async (req, res) =>
   } catch (error) {
     console.error('Error processing webhook:', error);
     res.status(500).send('<?xml version="1.0" encoding="UTF-8"?><Response></Response>');
+  }
+});
+
+app.get('/api/divisions', async (req, res) => {
+  try {
+    const divisions = await Division.find().select('name code');
+    return res.status(200).json({ success: true, divisions });
+  } catch (error) {
+    console.error('Error fetching divisions:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Get a specific division
+app.get('/api/divisions/:id', async (req, res) => {
+  try {
+    const division = await Division.findById(req.params.id).select('-dashboard_credentials.password');
+    
+    if (!division) {
+      return res.status(404).json({ success: false, message: 'Division not found' });
+    }
+    
+    return res.status(200).json({ success: true, division });
+  } catch (error) {
+    console.error('Error fetching division:', error);
+    return res.status(500).json({ success: false, message: error.message });
   }
 });
 

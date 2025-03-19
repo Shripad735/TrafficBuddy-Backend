@@ -1,8 +1,10 @@
-const Query = require('../models/Query'); // Using your existing Query model
+const Query = require('../models/Query');
+const Division = require('../models/Division');
 const { sendWhatsAppMessage } = require('../utils/whatsapp');
 const { getText } = require('../utils/language');
 const Session = require('../models/Session');
 const { sendQueryEmail } = require('../utils/email');
+const mongoose = require('mongoose');
 
 
 // Get all queries (with pagination and filtering)
@@ -15,7 +17,8 @@ exports.getAllQueries = async (req, res) => {
       query_type,
       sort = 'timestamp',
       order = 'desc',
-      search
+      search,
+      division
     } = req.query;
     
     const skip = (page - 1) * limit;
@@ -29,6 +32,26 @@ exports.getAllQueries = async (req, res) => {
     
     if (query_type) {
       filter.query_type = query_type;
+    }
+    
+    // Filter by division if specified (for division dashboards)
+    if (division) {
+      // Handle both ObjectId and string representations
+      if (mongoose.Types.ObjectId.isValid(division)) {
+        filter.division = mongoose.Types.ObjectId(division);
+      } else {
+        // If a division code is provided instead of an ID
+        const divisionDoc = await Division.findOne({ code: division });
+        if (divisionDoc) {
+          filter.division = divisionDoc._id;
+        }
+      }
+    }
+    
+    // Check if user role is division_admin (from auth middleware)
+    if (req.user && req.user.role === 'division_admin' && req.user.divisionId) {
+      // Override any division filter - division admins can only see their own division's data
+      filter.division = mongoose.Types.ObjectId(req.user.divisionId);
     }
     
     // Search functionality
@@ -48,6 +71,7 @@ exports.getAllQueries = async (req, res) => {
     
     // Execute query with pagination
     const queries = await Query.find(filter)
+      .populate('division', 'name code')
       .sort(sortOptions)
       .skip(skip)
       .limit(parseInt(limit));
@@ -234,83 +258,7 @@ exports.getQueriesByType = async (req, res) => {
 };
 
 // Get query statistics
-exports.getQueryStatistics = async (req, res) => {
-  try {
-    // Get counts for each status
-    const pending = await Query.countDocuments({ status: 'Pending' });
-    const inProgress = await Query.countDocuments({ status: 'In Progress' });
-    const resolved = await Query.countDocuments({ status: 'Resolved' });
-    const rejected = await Query.countDocuments({ status: 'Rejected' });
-    
-    // Get counts for each query type
-    const trafficViolation = await Query.countDocuments({ query_type: 'Traffic Violation' });
-    const trafficCongestion = await Query.countDocuments({ query_type: 'Traffic Congestion' });
-    const accident = await Query.countDocuments({ query_type: 'Accident' });
-    const roadDamage = await Query.countDocuments({ query_type: 'Road Damage' });
-    const illegalParking = await Query.countDocuments({ query_type: 'Illegal Parking' });
-    const suggestion = await Query.countDocuments({ query_type: 'Suggestion' });
-    const joinRequest = await Query.countDocuments({ query_type: 'Join Request' });
-    const generalReport = await Query.countDocuments({ query_type: 'General Report' });
-    
-    // Get recent statistics (last 30 days)
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    
-    const recentQueries = await Query.countDocuments({ timestamp: { $gte: thirtyDaysAgo } });
-    const recentResolved = await Query.countDocuments({ 
-      status: 'Resolved',
-      resolved_at: { $gte: thirtyDaysAgo }
-    });
-    
-    // Get daily counts for the past month for a chart
-    const dailyCounts = await Query.aggregate([
-      { 
-        $match: { 
-          timestamp: { $gte: thirtyDaysAgo } 
-        } 
-      },
-      {
-        $group: {
-          _id: { 
-            $dateToString: { format: "%Y-%m-%d", date: "$timestamp" } 
-          },
-          count: { $sum: 1 }
-        }
-      },
-      { $sort: { _id: 1 } }
-    ]);
-    
-    return res.status(200).json({
-      success: true,
-      stats: {
-        total: pending + inProgress + resolved + rejected,
-        byStatus: { pending, inProgress, resolved, rejected },
-        byType: { 
-          trafficViolation,
-          trafficCongestion,
-          accident,
-          roadDamage, 
-          illegalParking,
-          suggestion,
-          joinRequest,
-          generalReport
-        },
-        recent: {
-          totalQueries: recentQueries,
-          resolvedQueries: recentResolved,
-          dailyCounts
-        }
-      }
-    });
-  } catch (error) {
-    console.error('Error fetching query statistics:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Internal server error',
-      error: error.message
-    });
-  }
-};
+
 
 // Delete a query (admin feature)
 exports.deleteQuery = async (req, res) => {
@@ -550,3 +498,136 @@ exports.getqueriesbytimefilter = async (req, res) => {
     });
   }
 };
+
+
+
+// Get query statistics with division filtering
+exports.getQueryStatistics = async (req, res) => {
+  try {
+    // Get counts for each status
+    const pending = await Query.countDocuments({ status: 'Pending' });
+    const inProgress = await Query.countDocuments({ status: 'In Progress' });
+    const resolved = await Query.countDocuments({ status: 'Resolved' });
+    const rejected = await Query.countDocuments({ status: 'Rejected' });
+    
+    // Get counts for each query type
+    const trafficViolation = await Query.countDocuments({ query_type: 'Traffic Violation' });
+    const trafficCongestion = await Query.countDocuments({ query_type: 'Traffic Congestion' });
+    const accident = await Query.countDocuments({ query_type: 'Accident' });
+    const roadDamage = await Query.countDocuments({ query_type: 'Road Damage' });
+    const illegalParking = await Query.countDocuments({ query_type: 'Illegal Parking' });
+    const suggestion = await Query.countDocuments({ query_type: 'Suggestion' });
+    const joinRequest = await Query.countDocuments({ query_type: 'Join Request' });
+    const generalReport = await Query.countDocuments({ query_type: 'General Report' });
+    
+    // Get recent statistics (last 30 days)
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    
+    const recentQueries = await Query.countDocuments({ timestamp: { $gte: thirtyDaysAgo } });
+    const recentResolved = await Query.countDocuments({ 
+      status: 'Resolved',
+      resolved_at: { $gte: thirtyDaysAgo }
+    });
+    
+    // Get daily counts for the past month for a chart
+    const dailyCounts = await Query.aggregate([
+      { 
+        $match: { 
+          timestamp: { $gte: thirtyDaysAgo } 
+        } 
+      },
+      {
+        $group: {
+          _id: { 
+            $dateToString: { format: "%Y-%m-%d", date: "$timestamp" } 
+          },
+          count: { $sum: 1 }
+        }
+      },
+      { $sort: { _id: 1 } }
+    ]);
+    
+    return res.status(200).json({
+      success: true,
+      stats: {
+        total: pending + inProgress + resolved + rejected,
+        byStatus: { pending, inProgress, resolved, rejected },
+        byType: { 
+          trafficViolation,
+          trafficCongestion,
+          accident,
+          roadDamage, 
+          illegalParking,
+          suggestion,
+          joinRequest,
+          generalReport
+        },
+        recent: {
+          totalQueries: recentQueries,
+          resolvedQueries: recentResolved,
+          dailyCounts
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching query statistics:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
+  }
+};
+
+// New function to get statistics by division (for main dashboard)
+exports.getStatisticsByDivision = async (req, res) => {
+  try {
+    // Get all divisions
+    const divisions = await Division.find().select('name code');
+    
+    // For each division, get the statistics
+    const divisionStats = await Promise.all(
+      divisions.map(async (division) => {
+        // Filter by this division
+        const filter = { division: division._id };
+        
+        // Get counts by status
+        const pending = await Query.countDocuments({ ...filter, status: 'Pending' });
+        const inProgress = await Query.countDocuments({ ...filter, status: 'In Progress' });
+        const resolved = await Query.countDocuments({ ...filter, status: 'Resolved' });
+        const rejected = await Query.countDocuments({ ...filter, status: 'Rejected' });
+        
+        // Get total for this division
+        const total = pending + inProgress + resolved + rejected;
+        
+        // Get resolution rate
+        const resolutionRate = total > 0 ? (resolved / total * 100).toFixed(1) : 0;
+        
+        return {
+          division: {
+            id: division._id,
+            name: division.name,
+            code: division.code
+          },
+          total,
+          byStatus: { pending, inProgress, resolved, rejected },
+          resolutionRate
+        };
+      })
+    );
+    
+    return res.status(200).json({
+      success: true,
+      divisionStats
+    });
+  } catch (error) {
+    console.error('Error fetching division statistics:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
+  }
+};
+

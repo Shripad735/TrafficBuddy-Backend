@@ -33,3 +33,60 @@ exports.sendWhatsAppMessage = async (to, body) => {
     throw error;
   }
 };
+
+// Add this to your utils/whatsapp.js file
+// Function to notify division officers about new queries
+exports.notifyDivisionOfficers = async (query, division) => {
+  if (!division || !division.officers || division.officers.length === 0) {
+    console.log('No officers to notify for division');
+    return [];
+  }
+  
+  const client = getTwilioClient();
+  const activeOfficers = division.officers.filter(officer => officer.isActive);
+  
+  // Only notify up to 2 officers
+  const officersToNotify = activeOfficers.slice(0, 2);
+  const notifiedOfficers = [];
+  
+  if (officersToNotify.length === 0) {
+    console.log('No active officers to notify');
+    return [];
+  }
+  
+  try {
+    const location = query.location?.address || `${query.location?.latitude}, ${query.location?.longitude}`;
+    
+    // Create notification message
+    const notificationMessage = `🚨 New Traffic Report in ${division.name}\n\n` +
+      `Type: ${query.query_type}\n` +
+      `Location: ${location}\n` +
+      `Description: ${query.description}\n\n` +
+      `To resolve this issue, click: https://trafficbuddy.pcmc.gov.in/resolve/${query._id}`;
+    
+    // Send messages to officers
+    for (const officer of officersToNotify) {
+      try {
+        await client.messages.create({
+          from: 'whatsapp:+14155238886',
+          to: officer.phone,
+          body: notificationMessage
+        });
+        
+        console.log(`Notification sent to officer: ${officer.name} (${officer.phone})`);
+        
+        notifiedOfficers.push({
+          phone: officer.phone,
+          timestamp: new Date()
+        });
+      } catch (error) {
+        console.error(`Error sending notification to officer ${officer.name}:`, error);
+      }
+    }
+    
+    return notifiedOfficers;
+  } catch (error) {
+    console.error('Error in notifyDivisionOfficers:', error);
+    return [];
+  }
+};
