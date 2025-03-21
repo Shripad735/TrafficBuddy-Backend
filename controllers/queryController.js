@@ -35,10 +35,10 @@ exports.getAllQueries = async (req, res) => {
     }
     
     // Filter by division if specified (for division dashboards)
-    if (division) {
+    if (division && division !== 'NOT_SPECIFIED') {
       // Handle both ObjectId and string representations
       if (mongoose.Types.ObjectId.isValid(division)) {
-        filter.division = mongoose.Types.ObjectId(division);
+        filter.division = new mongoose.Types.ObjectId(division);
       } else {
         // If a division code is provided instead of an ID
         const divisionDoc = await Division.findOne({ code: division });
@@ -434,11 +434,62 @@ exports.broadcastMessageToVolunteers = async (req, res) => {
 };
 
 
-// Replace both existing getqueriesbytimefilter functions with this single implementation:
+exports.getQueriesByDivision = async (req, res) => {
+  try {
+    const { division } = req.params;
+    console.log('Division:', division);
+    
+    let filter = {};
+    if (division && division !== 'NOT_SPECIFIED') {
+      // Handle both ObjectId and string representations
+      if (mongoose.Types.ObjectId.isValid(division)) {
+        filter.division = new mongoose.Types.ObjectId(division);
+      } else {
+        // If a division code is provided instead of an ID
+        const divisionDoc = await Division.findOne({ code: division });
+        if (divisionDoc) {
+          filter.division = divisionDoc._id;
+        }
+      }
+    }
+    
+    // Check if user role is division_admin (from auth middleware)
+    if (req.user && req.user.role === 'division_admin' && req.user.divisionId) {
+      // Override any division filter - division admins can only see their own division's data
+      filter.division = mongoose.Types.ObjectId(req.user.divisionId);
+    }
+    
+    console.log(`Querying DB with filter:`, filter);
+    
+    const queries = await Query
+    .find(filter)
+    .sort({ timestamp: -1 });
+    
+    console.log(`Found ${queries.length} queries matching the division`);
+    
+    return res.status(200).json({
+      success: true,
+      count: queries.length,
+      timeRange: {
+        start: startDate,
+        end: endDate
+      },
+      data: queries
+    });
+  } catch (error) {
+    console.error('Error fetching queries by time filter:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
+  }
+}
 
 exports.getqueriesbytimefilter = async (req, res) => {
   try {
-    const { start, end } = req.query;
+    const { start, end, division} = req.query;
+    console.log('Division:', division);
     
     if (!start || !end) {
       return res.status(400).json({
@@ -467,19 +518,35 @@ exports.getqueriesbytimefilter = async (req, res) => {
         message: 'Invalid date format. Please use ISO format (YYYY-MM-DD) or timestamp'
       });
     }
-
-    console.log(`Querying DB for dates between ${startDate.toISOString()} and ${endDate.toISOString()}`);
     
-    // Find queries within the date range
-    const queries = await Query.find({ 
-      timestamp: { 
-        $gte: startDate, 
-        $lte: endDate 
-      } 
-    }).sort({ timestamp: -1 });
+    let filter = { timestamp: { $gte: startDate, $lte: endDate } };
+    
+    // Filter by division if specified (for division dashboards)
+    if (division && division !== 'NOT_SPECIFIED') {
+      // Handle both ObjectId and string representations
+      if (mongoose.Types.ObjectId.isValid(division)) {
+        filter.division = new mongoose.Types.ObjectId(division);
+      } else {
+        // If a division code is provided instead of an ID
+        const divisionDoc = await Division.findOne({ code: division });
+        if (divisionDoc) {
+          filter.division = divisionDoc._id;
+        }
+      }
+    }
+    
+    // Check if user role is division_admin (from auth middleware)
+    if (req.user && req.user.role === 'division_admin' && req.user.divisionId) {
+      // Override any division filter - division admins can only see their own division's data
+      filter.division = mongoose.Types.ObjectId(req.user.divisionId);
+    }
+
+    console.log(`Querying DB with filter:`, filter);
+
+    const queries = await Query.find(filter).sort({ timestamp: -1 });
     
     console.log(`Found ${queries.length} queries matching the date range`);
-    
+
     return res.status(200).json({
       success: true,
       count: queries.length,
@@ -499,7 +566,81 @@ exports.getqueriesbytimefilter = async (req, res) => {
   }
 };
 
+// Get stats by division
+exports.getStatsByDivision = async (req, res) => {
+  try {
+    const { division } = req.params;
+    console.log('Division:', division);
+    
+    if (!division) {
+      return res.status(400).json({
+        success: false,
+        message: 'Division is required'
+      });
+    }
 
+    filter = {}
+    if (division && division !== 'NOT_SPECIFIED') {
+      // Handle both ObjectId and string representations
+      if (mongoose.Types.ObjectId.isValid(division)) {
+        filter.division = new mongoose.Types.ObjectId(division);
+      } else {
+        // If a division code is provided instead of an ID
+        const divisionDoc = await Division.findOne({ code: division });
+        if (divisionDoc) {
+          filter.division = divisionDoc._id;
+        }
+      }
+    }
+    
+    // Check if user role is division_admin (from auth middleware)
+    if (req.user && req.user.role === 'division_admin' && req.user.divisionId) {
+      // Override any division filter - division admins can only see their own division's data
+      filter.division = mongoose.Types.ObjectId(req.user.divisionId);
+    }
+    
+    // Get counts for each status
+    const pending = await Query.countDocuments({ ...filter, status: 'Pending' });
+    const inProgress = await Query.countDocuments({ ...filter, status: 'In Progress' });
+    const resolved = await Query.countDocuments({ ...filter, status: 'Resolved' });
+    const rejected = await Query.countDocuments({ ...filter, status: 'Rejected' });
+    
+    // Get counts for each query type
+    const trafficViolation = await Query.countDocuments({ ...filter, query_type: 'Traffic Violation' });
+    const trafficCongestion = await Query.countDocuments({ ...filter, query_type: 'Traffic Congestion' });
+    const accident = await Query.countDocuments({ ...filter, query_type: 'Accident' });
+    const roadDamage = await Query.countDocuments({ ...filter, query_type: 'Road Damage' });
+    const illegalParking = await Query.countDocuments({ ...filter, query_type: 'Illegal Parking' });
+    const suggestion = await Query.countDocuments({ ...filter, query_type: 'Suggestion' });
+    const joinRequest = await Query.countDocuments({ ...filter, query_type: 'Join Request' });
+    const generalReport = await Query.countDocuments({ ...filter, query_type: 'General Report' });
+
+    return res.status(200).json({
+      success: true,
+      stats: {
+        total: pending + inProgress + resolved + rejected,
+        byStatus: { pending, inProgress, resolved, rejected },
+        byType: { 
+          trafficViolation,
+          trafficCongestion,
+          accident,
+          roadDamage, 
+          illegalParking,
+          suggestion,
+          joinRequest,
+          generalReport
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching division stats:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
+  }
+}
 
 // Get query statistics with division filtering
 exports.getQueryStatistics = async (req, res) => {

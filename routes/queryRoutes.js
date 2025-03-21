@@ -10,6 +10,12 @@ router.use(authMiddleware);
 // Get all queries with filtering and pagination
 router.get('/', queryController.getAllQueries);
 
+// get all queries for a specific division
+router.get('/division/:division', queryController.getQueriesByDivision);
+
+// get stats for a specific division
+router.get('/division/:division/stats', queryController.getStatsByDivision);
+
 // Get query statistics
 router.get('/statistics', queryController.getQueryStatistics);
 
