@@ -470,10 +470,6 @@ exports.getQueriesByDivision = async (req, res) => {
     return res.status(200).json({
       success: true,
       count: queries.length,
-      timeRange: {
-        start: startDate,
-        end: endDate
-      },
       data: queries
     });
   } catch (error) {
@@ -579,7 +575,7 @@ exports.getStatsByDivision = async (req, res) => {
       });
     }
 
-    filter = {}
+    let filter = {}
     if (division && division !== 'NOT_SPECIFIED') {
       // Handle both ObjectId and string representations
       if (mongoose.Types.ObjectId.isValid(division)) {
@@ -615,6 +611,35 @@ exports.getStatsByDivision = async (req, res) => {
     const joinRequest = await Query.countDocuments({ ...filter, query_type: 'Join Request' });
     const generalReport = await Query.countDocuments({ ...filter, query_type: 'General Report' });
 
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    
+    const recentQueries = await Query.countDocuments({ ...filter, timestamp: { $gte: thirtyDaysAgo}});
+    const recentResolved = await Query.countDocuments({
+      ...filter,
+      status: 'Resolved',
+      resolved_at: { $gte: thirtyDaysAgo }
+    });
+    
+    // Get daily counts for the past month for a chart
+    const dailyCounts = await Query.aggregate([
+      {
+        $match: {
+          ...filter, 
+          timestamp: { $gte: thirtyDaysAgo } 
+        } 
+      },
+      {
+        $group: {
+          _id: { 
+            $dateToString: { format: "%Y-%m-%d", date: "$timestamp" } 
+          },
+          count: { $sum: 1 }
+        }
+      },
+      { $sort: { _id: 1 } }
+    ]);
+
     return res.status(200).json({
       success: true,
       stats: {
@@ -629,6 +654,11 @@ exports.getStatsByDivision = async (req, res) => {
           suggestion,
           joinRequest,
           generalReport
+        },
+        recent: {
+          totalQueries: recentQueries,
+          resolvedQueries: recentResolved,
+          dailyCounts
         }
       }
     });
