@@ -364,25 +364,6 @@ app.post('/api/report', upload.single('image'), async (req, res) => {
     await newQuery.save();
     console.log(`Saved ${queryType} report to database with division: ${matchingDivision.name}`);
 
-    // Update the notification message with the actual query ID
-    if (notifiedOfficers.length > 0) {
-      const updatedNotificationMessage = `🚨 New Traffic Report in ${matchingDivision.name}\n\n` +
-        `Type: ${queryType}\n` +
-        `Location: ${address || 'See map link'}\n` +
-        `Description: ${description}\n\n` +
-        `To resolve this issue, click: https://trafficbuddy.pcmc.gov.in/resolve/${newQuery._id}`;
-      
-      // Resend the notification with the correct link
-      for (const officer of notifiedOfficers) {
-        try {
-          await sendWhatsAppMessage(officer.phone, updatedNotificationMessage);
-          console.log(`Updated notification sent to officer with correct link: ${officer.phone}`);
-        } catch (updateError) {
-          console.error(`Failed to send updated notification to ${officer.phone}:`, updateError);
-        }
-      }
-    }
-
     // Send email notification
     try {
       await sendQueryNotification(newQuery, matchingDivision);
