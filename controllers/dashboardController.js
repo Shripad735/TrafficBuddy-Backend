@@ -13,7 +13,7 @@ exports.getDashboardSummary = async (req, res) => {
     } else if (req.query.division) {
       // Allow filtering by division for main admin
       if (mongoose.Types.ObjectId.isValid(req.query.division)) {
-        divisionFilter = { division: mongoose.Types.ObjectId(req.query.division) };
+        divisionFilter = { division: new mongoose.Types.ObjectId(req.query.division) };
       } else {
         // If a division code is provided instead of an ID
         const divisionDoc = await Division.findOne({ code: req.query.division });
@@ -122,11 +122,11 @@ exports.getRecentActivity = async (req, res) => {
     // Check if we should filter by division
     let divisionFilter = {};
     if (req.user && req.user.role === 'division_admin' && req.user.divisionId) {
-      divisionFilter = { division: mongoose.Types.ObjectId(req.user.divisionId) };
+      divisionFilter = { division: new mongoose.Types.ObjectId(req.user.divisionId) };
     } else if (req.query.division) {
       // Allow filtering by division for main admin
       if (mongoose.Types.ObjectId.isValid(req.query.division)) {
-        divisionFilter = { division: mongoose.Types.ObjectId(req.query.division) };
+        divisionFilter = { division: new mongoose.Types.ObjectId(req.query.division) };
       } else {
         // If a division code is provided instead of an ID
         const divisionDoc = await Division.findOne({ code: req.query.division });

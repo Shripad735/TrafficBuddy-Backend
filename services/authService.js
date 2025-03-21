@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const { Division } = require('../models/Division');
+const e = require('cors');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'traffic-buddy-jwt-secret-key';
 const JWT_EXPIRY = '24h'; // Token expiry time
@@ -73,8 +74,8 @@ const authenticateDivisionUser = async (username, password) => {
  */
 const authenticateMainAdmin = (username, password) => {
   // For now, hardcoded credentials for main dashboard
-  const mainAdminUsername = process.env.MAIN_ADMIN_USERNAME || 'admin';
-  const mainAdminPassword = process.env.MAIN_ADMIN_PASSWORD || 'admin123';
+  const mainAdminUsername = process.env.MAIN_ADMIN_USERNAME || 'Admin';
+  const mainAdminPassword = process.env.MAIN_ADMIN_PASSWORD || 'trafficBuddy@123';
 
   if (username === mainAdminUsername && password === mainAdminPassword) {
     // Create token payload
@@ -98,6 +99,65 @@ const authenticateMainAdmin = (username, password) => {
   };
 };
 
+// Function to authenticate division user or main admin => DO NOT USE - UNDER DEVELOPMENT
+const authenticateAnyUser = async (username, password) => {
+  const mainAdminUsername = process.env.MAIN_ADMIN_USERNAME || 'Admin';
+  const mainAdminPassword = process.env.MAIN_ADMIN_PASSWORD || 'trafficBuddy@123';
+
+  if (username === mainAdminUsername && password === mainAdminPassword) {
+    const payload = {
+      role: 'main_admin'
+    };
+    const token = jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRY });
+
+    return {
+      success: true,
+      token: token,
+      role: 'main_admin'
+    };
+  }
+  else{
+    const division = await Division.findOne({
+      'dashboard_credentials.username': username
+    });
+
+    if (!division) {
+      return {
+        success: false,
+        message: 'Invalid credentials'
+      };
+    }
+
+    const isMatch = division.dashboard_credentials.password === password;
+    
+    if (!isMatch) {
+      return {
+        success: false,
+        message: 'Invalid credentials'
+      };
+    }
+
+    const payload = {
+      id: division._id,
+      divisionCode: division.code,
+      divisionName: division.name,
+      role: 'division_admin'
+    };
+
+    const token = jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRY });
+
+    return {
+      success: true,
+      token: token,
+      division: {
+        id: division._id,
+        name: division.name,
+        code: division.code
+      }
+    };
+  }
+}
+  
 /**
  * Verify JWT token
  * @param {string} token - The JWT token
