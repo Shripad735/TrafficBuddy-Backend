@@ -2,12 +2,25 @@ const express = require('express');
 const router = express.Router();
 const queryController = require('../controllers/queryController');
 const { sendWhatsAppMessage } = require('../utils/whatsapp');
+const { authMiddleware, mainAdminOnly } = require('../services/authService');
+
+// Apply auth middleware to all query routes
+router.use(authMiddleware);
 
 // Get all queries with filtering and pagination
 router.get('/', queryController.getAllQueries);
 
+// get all queries for a specific division
+router.get('/division/:division', queryController.getQueriesByDivision);
+
+// get stats for a specific division
+router.get('/division/:division/stats', queryController.getStatsByDivision);
+
 // Get query statistics
 router.get('/statistics', queryController.getQueryStatistics);
+
+// Get statistics by division (for main dashboard)
+router.get('/division-statistics', queryController.getStatisticsByDivision);
 
 // IMPORTANT: Use path parameter pattern with hyphens to avoid confusion with IDs
 router.get('/time-filter', queryController.getqueriesbytimefilter);
@@ -21,17 +34,17 @@ router.get('/:id([0-9a-fA-F]{24})', queryController.getQueryById);
 // Update query status
 router.put('/:id/status', queryController.updateQueryStatus);
 
-// Delete a query
-router.delete('/:id', queryController.deleteQuery);
+// Delete a query - Restrict to main admin only
+router.delete('/:id', mainAdminOnly, queryController.deleteQuery);
 
 router.post('/:id/notify-department', queryController.notifyDepartmentByEmail);
 
-router.post('/broadcast', queryController.broadcastMessage);
+// Broadcast features should be restricted to main admin
+router.post('/broadcast', mainAdminOnly, queryController.broadcastMessage);
+router.post('/broadcasttoVolunteers', mainAdminOnly, queryController.broadcastMessageToVolunteers);
 
-router.post('/broadcasttoVolunteers', queryController.broadcastMessageToVolunteers);
-
-// Test WhatsApp messaging
-router.post('/test-notification', async (req, res) => {
+// Test WhatsApp messaging (restrict to main admin)
+router.post('/test-notification', mainAdminOnly, async (req, res) => {
     try {
       const { to, message } = req.body;
       

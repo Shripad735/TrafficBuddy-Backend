@@ -1,3 +1,4 @@
+
 const nodemailer = require('nodemailer');
 
 // Create email transporter using environment variables
@@ -9,13 +10,31 @@ const transporter = nodemailer.createTransport({
   }
 });
 
+// Verify SMTP connection on startup
+transporter.verify((error, success) => {
+  if (error) {
+    console.error('SMTP connection error:', error);
+  } else {
+    console.log('SMTP connection successful');
+  }
+});
+
 /**
- * Sends an email notification about a new query
+ * Sends an email notification about a new query to the division's email
  * @param {Object} query - The query object from MongoDB
+ * @param {Object} division - The division object containing the email
  * @returns {Promise} - Resolves when email is sent
  */
-const sendQueryNotification = async (query) => {
+const sendQueryNotification = async (query, division) => {
   try {
+    // Check if division exists and has an email
+    if (!division || !division.email) {
+      console.log('No email found for division');
+      throw new Error('No email found for division');
+    }
+
+    const divisionName = division.name; // Extract division name from the division object
+
     // Format the date and time
     const formattedDate = new Date(query.timestamp).toLocaleString('en-IN', {
       timeZone: 'Asia/Kolkata',
@@ -50,9 +69,6 @@ const sendQueryNotification = async (query) => {
             border-radius: 5px 5px 0 0;
             text-align: center;
           }
-          .header img {
-            max-height: 80px;
-          }
           .content {
             padding: 20px;
             background-color: #f9f9f9;
@@ -85,7 +101,7 @@ const sendQueryNotification = async (query) => {
       <body>
         <div class="container">
           <div class="header">
-            <h2>🚦 New Traffic Buddy Report 🚦</h2>
+            <h2>🚦 New Traffic Buddy Report - ${divisionName} 🚦</h2>
           </div>
           <div class="content">
             <h3>Report Details</h3>
@@ -111,6 +127,10 @@ const sendQueryNotification = async (query) => {
               ${query.phone ? `<tr><th>Phone</th><td>${query.phone}</td></tr>` : ''}
               ${query.description ? `<tr><th>Description</th><td>${query.description}</td></tr>` : ''}
               ${query.vehicle_number ? `<tr><th>Vehicle Number</th><td>${query.vehicle_number}</td></tr>` : ''}
+              <tr>
+                <th>Division</th>
+                <td>${divisionName}</td>
+              </tr>
             </table>
             
             ${query.location && (query.location.latitude || query.location.longitude) ? 
@@ -126,7 +146,7 @@ const sendQueryNotification = async (query) => {
           </div>
           <div class="footer">
             <p>This is an automated notification from Traffic Buddy. Please do not reply to this email.</p>
-            <p>&copy; ${new Date().getFullYear()} Traffic Buddy. All rights reserved.</p>
+            <p>© ${new Date().getFullYear()} Traffic Buddy. All rights reserved.</p>
           </div>
         </div>
       </body>
@@ -139,14 +159,16 @@ const sendQueryNotification = async (query) => {
         name: 'TrafficBuddy',
         address: process.env.EMAIL_USER
       },
-      to: 'shripadkhandare2020@gmail.com',
-      subject: `New Traffic Buddy ${query.query_type} Report`,
+      to: division.email, // Use the email directly from the division object
+      subject: `New Traffic Buddy ${query.query_type} Report - ${divisionName}`,
       html: htmlContent
     };
 
     // Send email
     const info = await transporter.sendMail(mailOptions);
-    console.log('Email notification sent:', info.messageId);
+    console.log('Division object received in emailer:', division); // Added for debugging
+    console.log('Email send response:', info); // Added for detailed response logging
+    console.log(`Email notification sent to ${division.email}:`, info.messageId);
     return info;
   } catch (error) {
     console.error('Error sending email notification:', error);
