@@ -611,6 +611,7 @@ exports.getStatsByDivision = async (req, res) => {
     const accident = await Query.countDocuments({ ...filter, query_type: 'Accident' });
     const roadDamage = await Query.countDocuments({ ...filter, query_type: 'Road Damage' });
     const illegalParking = await Query.countDocuments({ ...filter, query_type: 'Illegal Parking' });
+    const trafficSignalIssue = await Query.countDocuments({ ...filter, query_type: 'Traffic Signal Issue' });
     const suggestion = await Query.countDocuments({ ...filter, query_type: 'Suggestion' });
     const joinRequest = await Query.countDocuments({ ...filter, query_type: 'Join Request' });
     const generalReport = await Query.countDocuments({ ...filter, query_type: 'General Report' });
@@ -626,6 +627,7 @@ exports.getStatsByDivision = async (req, res) => {
           accident,
           roadDamage, 
           illegalParking,
+          trafficSignalIssue,
           suggestion,
           joinRequest,
           generalReport
