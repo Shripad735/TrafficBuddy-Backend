@@ -118,7 +118,7 @@ exports.getDashboardSummary = async (req, res) => {
 exports.getRecentActivity = async (req, res) => {
   try {
     const { limit = 10 } = req.query;
-    
+    console.log(Division.Division);
     // Check if we should filter by division
     let divisionFilter = {};
     if (req.user && req.user.role === 'division_admin' && req.user.divisionId) {
