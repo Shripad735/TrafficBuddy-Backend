@@ -49,50 +49,59 @@ exports.notifyDivisionOfficers = async (query, division) => {
     return [];
   }
   
-  const client = getTwilioClient();
-  const activeOfficers = division.officers.filter(officer => officer.isActive);
+  // Get Twilio client - fixed: using the exported function
+  const client = exports.getTwilioClient();
   
-  // Only notify up to 2 officers
-  const officersToNotify = activeOfficers.slice(0, 2);
-  const notifiedOfficers = [];
-  
-  if (officersToNotify.length === 0) {
-    console.log('No active officers to notify');
-    return [];
-  }
+  // Get the first officer regardless of active status
+  const officerToNotify = division.officers[0];
+  const notifiedContacts = [];
   
   try {
     const location = query.location?.address || `${query.location?.latitude}, ${query.location?.longitude}`;
     
     // Create notification message
-    const notificationMessage = `🚨 New Traffic Report in ${matchingDivision.name}\n\n` +
-      `Type: ${queryType}\n` +
-      `Location: ${address || 'See map link'}\n` +
-      `Description: ${description}\n\n` +
-      `To resolve this issue, click: ${process.env.SERVER_URL}/resolve.html?id=${newQuery._id}`;
-        // Send messages to officers
-    for (const officer of officersToNotify) {
+    const notificationMessage = `🚨 New Traffic Report in ${division.name}\n\n` +
+      `Type: ${query.queryType}\n` +
+      `Location: ${query.location?.address || 'See map link'}\n` +
+      `Description: ${query.description}\n\n` +
+      `To resolve this issue, click: ${process.env.SERVER_URL}/resolve.html?id=${query._id}`;
+    
+    // Phone numbers to notify
+    const phoneNumbers = [];
+    
+    // Add officer's primary phone
+    if (officerToNotify?.phone) {
+      phoneNumbers.push(officerToNotify.phone);
+    }
+    
+    // Add alternate phone if it exists
+    if (officerToNotify?.alternate_phone) {
+      phoneNumbers.push(officerToNotify.alternate_phone);
+    }
+    
+    // Send messages to both phone numbers
+    for (const phone of phoneNumbers) {
       try {
         // Ensure the 'to' number starts with 'whatsapp:+'
-        const formattedPhone = officer.phone.startsWith('whatsapp:+') ? officer.phone : `whatsapp:+${officer.phone.replace(/^\+/, '')}`;
+        const formattedPhone = phone.startsWith('whatsapp:+') ? phone : `whatsapp:+${phone.replace(/^\+/, '')}`;
         await client.messages.create({
           from: 'whatsapp:+14155238886',
-          to: formattedPhone, // Fixed: Now ensures the 'to' starts with 'whatsapp:+'
+          to: formattedPhone,
           body: notificationMessage
         });
         
-        console.log(`Notification sent to officer: ${officer.name} (${formattedPhone})`);
+        console.log(`Notification sent to ${formattedPhone}`);
         
-        notifiedOfficers.push({
-          phone: officer.phone,
+        notifiedContacts.push({
+          phone: phone,
           timestamp: new Date()
         });
       } catch (error) {
-        console.error(`Error sending notification to officer ${officer.name}:`, error);
+        console.error(`Error sending notification to ${phone}:`, error);
       }
     }
     
-    return notifiedOfficers;
+    return notifiedContacts;
   } catch (error) {
     console.error('Error in notifyDivisionOfficers:', error);
     return [];
