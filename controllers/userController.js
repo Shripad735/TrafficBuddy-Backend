@@ -1,14 +1,15 @@
 const mongoose = require('mongoose');
 const { Division } = require('../models/Division');
 
-// GET current officers of all divisions
+// GET /current-officer
+// This function retrieves the current officers of all divisions.
 exports.getCurrentOfficers = async (req, res) => {
   try {
     const divisions = await Division.find();
     const officers = divisions.map(div => ({
       divisionId: div._id,
       divisionName: div.name,
-      currentOfficer: div.officers.length && div.officers[div.officers.length-1].isActive ? div.officers[div.officers.length - 1] : null
+      currentOfficer: div.officers.length ? div.officers[div.officers.length - 1] : null
     }));
     res.status(200).json({ success: true, officers });
   } catch (err) {
@@ -17,7 +18,8 @@ exports.getCurrentOfficers = async (req, res) => {
   }
 };
 
-// GET current officer of a specific division
+// GET /current-officer/:divisionId
+// This function retrieves the current officer of a specific division by divisionId.
 exports.getCurrentOfficer = async (req, res) => {
   try {
     const { divisionId } = req.params;
@@ -34,7 +36,9 @@ exports.getCurrentOfficer = async (req, res) => {
   }
 };
 
-// GET all officers of all divisions or specific division
+// GET /all-officers
+// GET /all-officers/:divisionId
+// This function retrieves all officers of all divisions or a specific division if divisionId is provided.
 exports.getAllOfficers = async (req, res) => {
   try {
     const { divisionId } = req.params;
@@ -61,7 +65,8 @@ exports.getAllOfficers = async (req, res) => {
   }
 };
 
-// PUT update officer details
+// PUT /update-officer/:divisionId
+// This function updates the details of the current officer of a specific division.
 exports.updateOfficer = async (req, res) => {
   try {
     const { divisionId } = req.params;
@@ -69,21 +74,21 @@ exports.updateOfficer = async (req, res) => {
     
     console.log(name, phone, alternate_phone, email, post);
     console.log(divisionId);
-
+    
     if (!mongoose.isValidObjectId(divisionId)) return res.status(400).json({ success: false, message: 'Invalid Division ID' });
-
+    
     const division = await Division.findById(divisionId);
     if (!division) return res.status(404).json({ success: false, message: 'Division not found' });
-
+    
     const officer = division.officers.length ? division.officers[division.officers.length - 1] : null;
     if (!officer) return res.status(404).json({ success: false, message: 'No officer assigned' });
-
+    
     if (name) officer.name = name;
     if (phone) officer.phone = phone;
     if (alternate_phone) officer.alternate_phone = alternate_phone;
     if (email) officer.email = email;
     if (post) officer.post = post;
-
+    
     await division.save();
     res.status(200).json({ success: true, message: 'Officer updated successfully' });
   } catch (err) {
@@ -92,18 +97,21 @@ exports.updateOfficer = async (req, res) => {
   }
 };
 
-// POST assign new officer to division with auto-unassign from others
+// POST assign-officer/:divisionId
+// This function assigns a new officer to a division and automatically unassigns the current officer.
 exports.assignOfficer = async (req, res) => {
   try {
     const { divisionId } = req.params;
     const { name, phone, alternate_phone, email, post } = req.body;
-
+    console.log(name, phone, alternate_phone, email, post);
+    console.log(divisionId);
+    
     if (!name || !phone) return res.status(400).json({ success: false, message: 'Name and phone required' });
     if (!mongoose.isValidObjectId(divisionId)) return res.status(400).json({ success: false, message: 'Invalid Division ID' });
-
+    
     const division = await Division.findById(divisionId);
     if (!division) return res.status(404).json({ success: false, message: 'Division not found' });
-
+    
     // Unassign the current officer
     const currentOfficer = division.officers.length ? division.officers[division.officers.length - 1] : null;
     if (currentOfficer) {
@@ -132,7 +140,8 @@ exports.assignOfficer = async (req, res) => {
   }
 };
 
-// POST unassign (deactivate) the current officer
+// POST /unassign-officer/:divisionId (CURRENTLY NOT IN USE)
+// This function unassigns (deactivates) the current officer of a specific division.
 exports.unassignOfficer = async (req, res) => {
   try {
     const { divisionId } = req.params;
