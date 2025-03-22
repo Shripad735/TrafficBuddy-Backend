@@ -1,3 +1,4 @@
+// utils/whatsapp.js
 require('dotenv').config();
 const twilio = require('twilio');
 
@@ -20,9 +21,11 @@ exports.getTwilioClient = () => client;
  */
 exports.sendWhatsAppMessage = async (to, body) => {
   try {
+    // Ensure the 'to' number starts with 'whatsapp:+'
+    const formattedTo = to.startsWith('whatsapp:+') ? to : `whatsapp:+${to.replace(/^\+/, '')}`;
     const message = await client.messages.create({
       from: 'whatsapp:+14155238886', // Your Twilio WhatsApp number
-      to: to,
+      to: formattedTo, // Fixed: Now ensures the 'to' starts with 'whatsapp:+'
       body: body
     });
     
@@ -34,8 +37,12 @@ exports.sendWhatsAppMessage = async (to, body) => {
   }
 };
 
-// Add this to your utils/whatsapp.js file
-// Function to notify division officers about new queries
+/**
+ * Notify division officers about new queries
+ * @param {Object} query - The traffic query object
+ * @param {Object} division - The division object containing officers
+ * @returns {Promise<Array>} - List of notified officers
+ */
 exports.notifyDivisionOfficers = async (query, division) => {
   if (!division || !division.officers || division.officers.length === 0) {
     console.log('No officers to notify for division');
@@ -67,13 +74,15 @@ exports.notifyDivisionOfficers = async (query, division) => {
     // Send messages to officers
     for (const officer of officersToNotify) {
       try {
+        // Ensure the 'to' number starts with 'whatsapp:+'
+        const formattedPhone = officer.phone.startsWith('whatsapp:+') ? officer.phone : `whatsapp:+${officer.phone.replace(/^\+/, '')}`;
         await client.messages.create({
           from: 'whatsapp:+14155238886',
-          to: officer.phone,
+          to: formattedPhone, // Fixed: Now ensures the 'to' starts with 'whatsapp:+'
           body: notificationMessage
         });
         
-        console.log(`Notification sent to officer: ${officer.name} (${officer.phone})`);
+        console.log(`Notification sent to officer: ${officer.name} (${formattedPhone})`);
         
         notifiedOfficers.push({
           phone: officer.phone,

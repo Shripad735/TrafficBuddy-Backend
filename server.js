@@ -16,8 +16,6 @@ const { getText, getLanguagePrompt } = require('./utils/language');
 const { getReportInstructionMessage } = require('./utils/deeplink');
 const { getTwilioClient, sendWhatsAppMessage } = require('./utils/whatsapp');
 const { getUserSession, updateUserSession } = require('./utils/sessionManager');
-// const { Division } = require('./models/Division');
-// const { insertDighiAlandiDivision } = require('./models/Division');
 
 // Import database connection
 const connectDB = require('./config/database');
@@ -27,14 +25,11 @@ const Query = require('./models/Query');
 const Session = require('./models/Session');
 const { Division } = require('./models/Division');
 
-
 // Import routes
 const uploadRoutes = require('./routes/upload');
 const queryRoutes = require('./routes/queryRoutes');
 const dashboardRoutes = require('./routes/dashboardRoutes');
 const authRoutes = require('./routes/authRoutes');
-
-
 
 // Check for required environment variables
 const requiredEnvVars = [
@@ -101,7 +96,6 @@ async function findDivisionForLocation(latitude, longitude) {
       console.log(`Division has ${coordinates.length} boundary points`);
       
       // Check if point is within polygon using ray casting algorithm
-      // IMPORTANT: Note that we're passing coordinates as [lng, lat] to match the DB format
       if (isPointInPolygon([lng, lat], coordinates)) {
         console.log(`Found matching division: ${division.name}`);
         return division;
@@ -117,16 +111,12 @@ async function findDivisionForLocation(latitude, longitude) {
 }
 
 // Improved ray casting algorithm to check if point is in polygon
-// This handles the longitude/latitude format correctly
 function isPointInPolygon(point, polygon) {
-  // point is [lng, lat]
   const x = point[0]; // longitude
   const y = point[1]; // latitude
   
   let inside = false;
   for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
-    // Get points for current polygon edge
-    // Each point in polygon is also [lng, lat]
     const xi = polygon[i][0]; // longitude of point i
     const yi = polygon[i][1]; // latitude of point i
     const xj = polygon[j][0]; // longitude of point j
@@ -152,26 +142,12 @@ const app = express();
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-//cors
-
-
 // Enable CORS
 app.use(cors({
   origin: ['http://localhost:5173', 'http://localhost:3000', 'https://yourdomain.com'],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
-
-// Configure CORS headers
-app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-  if (req.method === 'OPTIONS') {
-    res.header('Access-Control-Allow-Methods', 'PUT, POST, PATCH, DELETE, GET');
-    return res.status(200).json({});
-  }
-  next();
-});
 
 // Use routes
 app.use('/api/auth', authRoutes);
@@ -202,7 +178,6 @@ async function processMedia(body) {
   console.log('Media found in message. Count:', body.NumMedia);
 
   try {
-    // Get the media URL directly from the request
     const mediaUrl = body.MediaUrl0;
     const contentType = body.MediaContentType0 || 'image/jpeg';
 
@@ -214,10 +189,8 @@ async function processMedia(body) {
     console.log(`Media URL: ${mediaUrl}`);
     console.log(`Content Type: ${contentType}`);
 
-    // Create a basic auth header
     const auth = Buffer.from(`${accountSid}:${authToken}`).toString('base64');
 
-    // Download the media with proper authentication
     const response = await axios({
       method: 'get',
       url: mediaUrl,
@@ -235,11 +208,9 @@ async function processMedia(body) {
 
     console.log(`Downloaded media: ${response.data.length} bytes`);
 
-    // Convert to base64 and upload to R2
     const base64Data = Buffer.from(response.data).toString('base64');
     const base64Image = `data:${contentType};base64,${base64Data}`;
 
-    // Upload to Cloudflare R2
     console.log('Uploading to R2...');
     const uploadedUrl = await uploadImageToR2(base64Image, 'traffic_buddy');
     console.log('Upload complete. URL:', uploadedUrl);
@@ -261,7 +232,6 @@ app.get('/capture.html', (req, res) => {
 });
 
 // Endpoint to handle reports from the capture page
-// Replace your existing /api/report endpoint with this code
 app.post('/api/report', upload.single('image'), async (req, res) => {
   try {
     console.log('----- NEW REPORT SUBMISSION -----');
@@ -322,7 +292,7 @@ app.post('/api/report', upload.single('image'), async (req, res) => {
     const userSession = await Session.findOne({ user_id: userId });
     const userName = userSession?.user_name || 'Anonymous';
     
-    // Create the query with division information
+    // Prepare the query object but do not save it yet
     const newQuery = new Query({
       user_id: userId,
       user_name: userName,
@@ -339,13 +309,73 @@ app.post('/api/report', upload.single('image'), async (req, res) => {
       divisionName: matchingDivision.name,
       divisionNotified: false
     });
-    
+
+    // Notify division officers via WhatsApp if they exist
+    let notifiedOfficers = [];
+    let divisionNotified = false;
+
+    try {
+      if (matchingDivision.officers && matchingDivision.officers.length > 0) {
+        const activeOfficers = matchingDivision.officers.filter(officer => officer.isActive);
+        
+        // Only notify up to 2 officers
+        const officersToNotify = activeOfficers.slice(0, 2);
+        
+        if (officersToNotify.length > 0) {
+          const notificationMessage = `🚨 New Traffic Report in ${matchingDivision.name}\n\n` +
+            `Type: ${queryType}\n` +
+            `Location: ${address || 'See map link'}\n` +
+            `Description: ${description}\n\n` +
+            `To resolve this issue, click: https://trafficbuddy.pcmc.gov.in/resolve/pending`;
+          
+          // Send messages to officers
+          for (const officer of officersToNotify) {
+            try {
+              await sendWhatsAppMessage(officer.phone, notificationMessage);
+              console.log(`Notification sent to officer: ${officer.name} (${officer.phone})`);
+              
+              // Record that officer was notified
+              notifiedOfficers.push({
+                phone: officer.phone,
+                timestamp: new Date()
+              });
+            } catch (officerError) {
+              console.error(`Failed to notify officer ${officer.name} (${officer.phone}):`, officerError);
+            }
+          }
+          
+          // Set divisionNotified to true if at least one officer was notified
+          if (notifiedOfficers.length > 0) {
+            divisionNotified = true;
+          }
+        } else {
+          console.log('No active officers to notify for this division');
+        }
+      } else {
+        console.log('No officers found for this division');
+      }
+    } catch (notificationError) {
+      console.error('Error notifying division officers:', notificationError);
+    }
+
+    // Only save the query if divisionNotified is true
+    if (!divisionNotified) {
+      console.log('Division was not notified. Query will not be saved.');
+      return res.status(400).json({
+        success: false,
+        error: 'Unable to notify division officers. Report cannot be saved at this time.'
+      });
+    }
+
+    // Update the query object with notification details and save it
+    newQuery.divisionNotified = true;
+    newQuery.divisionOfficersNotified = notifiedOfficers;
     await newQuery.save();
     console.log(`Saved ${queryType} report to database with division: ${matchingDivision.name}`);
-    
+
     // Send email notification
     try {
-      await sendQueryNotification(newQuery);
+      await sendQueryNotification(newQuery, matchingDivision);
       console.log('Email notification sent');
     } catch (emailError) {
       console.error('Error sending email notification:', emailError);
@@ -369,47 +399,6 @@ app.post('/api/report', upload.single('image'), async (req, res) => {
       console.log('WhatsApp confirmation sent to user');
     } catch (whatsappError) {
       console.error('Error sending WhatsApp confirmation:', whatsappError);
-    }
-    
-    // 3. Notify division officers via WhatsApp if they exist
-    try {
-      if (matchingDivision.officers && matchingDivision.officers.length > 0) {
-        const activeOfficers = matchingDivision.officers.filter(officer => officer.isActive);
-        
-        // Only notify up to 2 officers
-        const officersToNotify = activeOfficers.slice(0, 2);
-        
-        if (officersToNotify.length > 0) {
-          // Format a notification message with query details and a link to resolve
-          const notificationMessage = `🚨 New Traffic Report in ${matchingDivision.name}\n\n` +
-            `Type: ${queryType}\n` +
-            `Location: ${address || 'See map link'}\n` +
-            `Description: ${description}\n\n` +
-            `To resolve this issue, click: https://trafficbuddy.pcmc.gov.in/resolve/${newQuery._id}`;
-          
-          const notifiedOfficers = [];
-          
-          // Send messages to officers
-          for (const officer of officersToNotify) {
-            await sendWhatsAppMessage(officer.phone, notificationMessage);
-            console.log(`Notification sent to officer: ${officer.name} (${officer.phone})`);
-            
-            // Record that officer was notified
-            notifiedOfficers.push({
-              phone: officer.phone,
-              timestamp: new Date()
-            });
-          }
-          
-          // Update query with information about which officers were notified
-          await Query.findByIdAndUpdate(newQuery._id, {
-            divisionNotified: true,
-            divisionOfficersNotified: notifiedOfficers
-          });
-        }
-      }
-    } catch (notificationError) {
-      console.error('Error notifying division officers:', notificationError);
     }
     
     res.status(200).json({ success: true });
@@ -436,6 +425,11 @@ app.post('/webhook', express.urlencoded({ extended: true }), async (req, res) =>
       console.log('Processing media attachment');
       mediaUrl = await processMedia(req.body);
     }
+
+    // Check for location data in the WhatsApp message
+    let latitude = req.body.Latitude || null;
+    let longitude = req.body.Longitude || null;
+    let locationAddress = req.body.Address || null;
 
     // Get user session using the helper function
     const userSession = await getUserSession(userNumber);
@@ -551,11 +545,56 @@ app.post('/webhook', express.urlencoded({ extended: true }), async (req, res) =>
         default:
           reportType = 'General Report';
       }
-      
-      // If location data is not present in the media, we can't determine division
-      // For WhatsApp reports, we still accept them but mark them for manual review
+
+      // If location data is present, try to find the division
       let matchingDivision = null;
-      
+      if (latitude && longitude) {
+        matchingDivision = await findDivisionForLocation(latitude, longitude);
+        if (!matchingDivision) {
+          console.log('Location is outside PCMC jurisdiction');
+          responseMessage = getText('LOCATION_OUTSIDE_JURISDICTION', userLanguage);
+          newState = 'MENU';
+          newLastOption = null;
+
+          // Update user session
+          await updateUserSession(userSession, newState, newLastOption, newLanguage);
+
+          // Send response back to the user
+          console.log('Sending response:', responseMessage);
+          await client.messages.create({
+            from: 'whatsapp:+14155238886',
+            to: userNumber,
+            body: responseMessage
+          });
+
+          return res.status(200).send('<?xml version="1.0" encoding="UTF-8"?><Response></Response>');
+        }
+      } else {
+        // If no location data is provided, inform the user to provide location
+        responseMessage = getText('LOCATION_MISSING_HINT', userLanguage);
+        newState = 'AWAITING_LOCATION';
+        newLastOption = lastOption;
+
+        // Temporarily store the description and photo URL in the session
+        userSession.last_description = userMessage;
+        userSession.last_photo_url = mediaUrl;
+        await userSession.save();
+
+        // Update user session
+        await updateUserSession(userSession, newState, newLastOption, newLanguage);
+
+        // Send response back to the user
+        console.log('Sending response:', responseMessage);
+        await client.messages.create({
+          from: 'whatsapp:+14155238886',
+          to: userNumber,
+          body: responseMessage
+        });
+
+        return res.status(200).send('<?xml version="1.0" encoding="UTF-8"?><Response></Response>');
+      }
+
+      // If we reach here, a division was found
       // Create a new report with user's name
       const newQuery = new Query({
         user_id: userNumber,
@@ -563,39 +602,312 @@ app.post('/webhook', express.urlencoded({ extended: true }), async (req, res) =>
         query_type: reportType,
         description: userMessage,
         photo_url: mediaUrl,
-        location: { latitude: null, longitude: null }, // WhatsApp reports typically don't have location initially
+        location: { 
+          latitude: parseFloat(latitude), 
+          longitude: parseFloat(longitude),
+          address: locationAddress || `${latitude}, ${longitude}`
+        },
         status: 'Pending',
-        division: matchingDivision ? matchingDivision._id : null,
-        divisionName: matchingDivision ? matchingDivision.name : 'Pending Assignment',
+        division: matchingDivision._id,
+        divisionName: matchingDivision.name,
         divisionNotified: false
       });
-      
+
+      // Notify division officers via WhatsApp if they exist
+      let notifiedOfficers = [];
+      let divisionNotified = false;
+
+      try {
+        if (matchingDivision.officers && matchingDivision.officers.length > 0) {
+          const activeOfficers = matchingDivision.officers.filter(officer => officer.isActive);
+          
+          // Only notify up to 2 officers
+          const officersToNotify = activeOfficers.slice(0, 2);
+          
+          if (officersToNotify.length > 0) {
+            const notificationMessage = `🚨 New Traffic Report in ${matchingDivision.name}\n\n` +
+              `Type: ${reportType}\n` +
+              `Location: ${locationAddress || 'See map link'}\n` +
+              `Description: ${userMessage}\n\n` +
+              `To resolve this issue, click: https://trafficbuddy.pcmc.gov.in/resolve/pending`;
+            
+            // Send messages to officers
+            for (const officer of officersToNotify) {
+              try {
+                await sendWhatsAppMessage(officer.phone, notificationMessage);
+                console.log(`Notification sent to officer: ${officer.name} (${officer.phone})`);
+                
+                // Record that officer was notified
+                notifiedOfficers.push({
+                  phone: officer.phone,
+                  timestamp: new Date()
+                });
+              } catch (officerError) {
+                console.error(`Failed to notify officer ${officer.name} (${officer.phone}):`, officerError);
+              }
+            }
+            
+            // Set divisionNotified to true if at least one officer was notified
+            if (notifiedOfficers.length > 0) {
+              divisionNotified = true;
+            }
+          } else {
+            console.log('No active officers to notify for this division');
+          }
+        } else {
+          console.log('No officers found for this division');
+        }
+      } catch (notificationError) {
+        console.error('Error notifying division officers:', notificationError);
+      }
+
+      // Only save the query if divisionNotified is true
+      if (!divisionNotified) {
+        console.log('Division was not notified. Query will not be saved.');
+        responseMessage = getText('NOTIFICATION_FAILED', userLanguage);
+        newState = 'MENU';
+        newLastOption = null;
+
+        // Update user session
+        await updateUserSession(userSession, newState, newLastOption, newLanguage);
+
+        // Send response back to the user
+        console.log('Sending response:', responseMessage);
+        await client.messages.create({
+          from: 'whatsapp:+14155238886',
+          to: userNumber,
+          body: responseMessage
+        });
+
+        return res.status(200).send('<?xml version="1.0" encoding="UTF-8"?><Response></Response>');
+      }
+
+      // Update the query object with notification details and save it
+      newQuery.divisionNotified = true;
+      newQuery.divisionOfficersNotified = notifiedOfficers;
       await newQuery.save();
-      console.log(`Saved ${reportType} report to database`);
-      
+      console.log(`Saved ${reportType} report to database with division: ${matchingDivision.name}`);
+
+      // Update the notification message with the actual query ID
+      if (notifiedOfficers.length > 0) {
+        const updatedNotificationMessage = `🚨 New Traffic Report in ${matchingDivision.name}\n\n` +
+          `Type: ${reportType}\n` +
+          `Location: ${locationAddress || 'See map link'}\n` +
+          `Description: ${userMessage}\n\n` +
+          `To resolve this issue, click: https://trafficbuddy.pcmc.gov.in/resolve/${newQuery._id}`;
+        
+        // Resend the notification with the correct link
+        for (const officer of notifiedOfficers) {
+          try {
+            await sendWhatsAppMessage(officer.phone, updatedNotificationMessage);
+            console.log(`Updated notification sent to officer with correct link: ${officer.phone}`);
+          } catch (updateError) {
+            console.error(`Failed to send updated notification to ${officer.phone}:`, updateError);
+          }
+        }
+      }
+
       // Send email notification
       try {
-        await sendQueryNotification(newQuery);
+        await sendQueryNotification(newQuery, matchingDivision);
         console.log('Email notification sent');
       } catch (emailError) {
         console.error('Error sending email notification:', emailError);
       }
-      
+
       // Send confirmation to user
-      // For WhatsApp reports without location, ask user to add location information
       responseMessage = getText('REPORT_RESPONSE', userLanguage, reportType, !!mediaUrl);
-      
-      // Add suggestion to include location in future reports if it wasn't provided
-      if (!newQuery.location.latitude) {
-        responseMessage += '\n\n' + getText('LOCATION_MISSING_HINT', userLanguage);
-      }
-      
       newState = 'MENU';
       newLastOption = null;
+    } else if (currentState === 'AWAITING_LOCATION') {
+      // User should have sent location data
+      if (latitude && longitude) {
+        const matchingDivision = await findDivisionForLocation(latitude, longitude);
+        if (!matchingDivision) {
+          console.log('Location is outside PCMC jurisdiction');
+          responseMessage = getText('LOCATION_OUTSIDE_JURISDICTION', userLanguage);
+          newState = 'MENU';
+          newLastOption = null;
+
+          // Update user session
+          await updateUserSession(userSession, newState, newLastOption, newLanguage);
+
+          // Send response back to the user
+          console.log('Sending response:', responseMessage);
+          await client.messages.create({
+            from: 'whatsapp:+14155238886',
+            to: userNumber,
+            body: responseMessage
+          });
+
+          return res.status(200).send('<?xml version="1.0" encoding="UTF-8"?><Response></Response>');
+        }
+
+        // Determine report type based on last option
+        let reportType = 'General Report';
+        switch (lastOption) {
+          case '1':
+            reportType = 'Traffic Violation';
+            break;
+          case '2':
+            reportType = 'Traffic Congestion';
+            break;
+          case '3':
+            reportType = 'Accident';
+            break;
+          case '4':
+            reportType = 'Road Damage';
+            break;
+          case '5':
+            reportType = 'Illegal Parking';
+            break;
+          case '7':
+            reportType = 'Suggestion';
+            break;
+          default:
+            reportType = 'General Report';
+        }
+
+        // Retrieve description and photo URL from session
+        const description = userSession.last_description || 'No description provided';
+        const photoUrl = userSession.last_photo_url || null;
+
+        // Create a new report with user's name
+        const newQuery = new Query({
+          user_id: userNumber,
+          user_name: userSession.user_name || 'Anonymous',
+          query_type: reportType,
+          description: description,
+          photo_url: photoUrl,
+          location: { 
+            latitude: parseFloat(latitude), 
+            longitude: parseFloat(longitude),
+            address: locationAddress || `${latitude}, ${longitude}`
+          },
+          status: 'Pending',
+          division: matchingDivision._id,
+          divisionName: matchingDivision.name,
+          divisionNotified: false
+        });
+
+        // Notify division officers via WhatsApp if they exist
+        let notifiedOfficers = [];
+        let divisionNotified = false;
+
+        try {
+          if (matchingDivision.officers && matchingDivision.officers.length > 0) {
+            const activeOfficers = matchingDivision.officers.filter(officer => officer.isActive);
+            
+            // Only notify up to 2 officers
+            const officersToNotify = activeOfficers.slice(0, 2);
+            
+            if (officersToNotify.length > 0) {
+              const notificationMessage = `🚨 New Traffic Report in ${matchingDivision.name}\n\n` +
+                `Type: ${reportType}\n` +
+                `Location: ${locationAddress || 'See map link'}\n` +
+                `Description: ${description}\n\n` +
+                `To resolve this issue, click: https://trafficbuddy.pcmc.gov.in/resolve/pending`;
+              
+              // Send messages to officers
+              for (const officer of officersToNotify) {
+                try {
+                  await sendWhatsAppMessage(officer.phone, notificationMessage);
+                  console.log(`Notification sent to officer: ${officer.name} (${officer.phone})`);
+                  
+                  // Record that officer was notified
+                  notifiedOfficers.push({
+                    phone: officer.phone,
+                    timestamp: new Date()
+                  });
+                } catch (officerError) {
+                  console.error(`Failed to notify officer ${officer.name} (${officer.phone}):`, officerError);
+                }
+              }
+              
+              // Set divisionNotified to true if at least one officer was notified
+              if (notifiedOfficers.length > 0) {
+                divisionNotified = true;
+              }
+            } else {
+              console.log('No active officers to notify for this division');
+            }
+          } else {
+            console.log('No officers found for this division');
+          }
+        } catch (notificationError) {
+          console.error('Error notifying division officers:', notificationError);
+        }
+
+        // Only save the query if divisionNotified is true
+        if (!divisionNotified) {
+          console.log('Division was not notified. Query will not be saved.');
+          responseMessage = getText('NOTIFICATION_FAILED', userLanguage);
+          newState = 'MENU';
+          newLastOption = null;
+
+          // Update user session
+          await updateUserSession(userSession, newState, newLastOption, newLanguage);
+
+          // Send response back to the user
+          console.log('Sending response:', responseMessage);
+          await client.messages.create({
+            from: 'whatsapp:+14155238886',
+            to: userNumber,
+            body: responseMessage
+          });
+
+          return res.status(200).send('<?xml version="1.0" encoding="UTF-8"?><Response></Response>');
+        }
+
+        // Update the query object with notification details and save it
+        newQuery.divisionNotified = true;
+        newQuery.divisionOfficersNotified = notifiedOfficers;
+        await newQuery.save();
+        console.log(`Saved ${reportType} report to database with division: ${matchingDivision.name}`);
+
+        // Update the notification message with the actual query ID
+        if (notifiedOfficers.length > 0) {
+          const updatedNotificationMessage = `🚨 New Traffic Report in ${matchingDivision.name}\n\n` +
+            `Type: ${reportType}\n` +
+            `Location: ${locationAddress || 'See map link'}\n` +
+            `Description: ${description}\n\n` +
+            `To resolve this issue, click: https://trafficbuddy.pcmc.gov.in/resolve/${newQuery._id}`;
+          
+          // Resend the notification with the correct link
+          for (const officer of notifiedOfficers) {
+            try {
+              await sendWhatsAppMessage(officer.phone, updatedNotificationMessage);
+              console.log(`Updated notification sent to officer with correct link: ${officer.phone}`);
+            } catch (updateError) {
+              console.error(`Failed to send updated notification to ${officer.phone}:`, updateError);
+            }
+          }
+        }
+
+        // Send email notification
+        try {
+          await sendQueryNotification(newQuery, matchingDivision);
+          console.log('Email notification sent');
+        } catch (emailError) {
+          console.error('Error sending email notification:', emailError);
+        }
+
+        // Send confirmation to user
+        responseMessage = getText('REPORT_RESPONSE', userLanguage, reportType, !!photoUrl);
+        newState = 'MENU';
+        newLastOption = null;
+
+        // Clear temporary session data
+        userSession.last_description = null;
+        userSession.last_photo_url = null;
+        await userSession.save();
+      } else {
+        responseMessage = getText('LOCATION_MISSING_HINT', userLanguage);
+        newState = 'AWAITING_LOCATION';
+      }
     } else if (currentState === 'AWAITING_JOIN') {
       // Process join request
-      // Store user information
-      // Assuming the message format is "Name: John Doe\nEmail: john@example.com\nPhone: 1234567890"
+      // Join requests don't require location/division, so we can save them directly
       const infoLines = userMessage.split('\n');
       let name = '';
       let email = '';
@@ -617,7 +929,7 @@ app.post('/webhook', express.urlencoded({ extended: true }), async (req, res) =>
       // Create a new join request
       const joinQuery = new Query({
         user_id: userNumber,
-        user_name: userSession.user_name || 'Anonymous', // Include user's name
+        user_name: userSession.user_name || 'Anonymous',
         query_type: 'Join Request',
         name: name,
         email: email,
