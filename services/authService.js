@@ -38,7 +38,7 @@ const authenticateDivisionUser = async (username, password) => {
 
     // Create token payload
     const payload = {
-      id: division._id,
+      divisionId: division._id,
       divisionCode: division.code,
       divisionName: division.name,
       role: 'division_admin'
@@ -74,8 +74,8 @@ const authenticateDivisionUser = async (username, password) => {
  */
 const authenticateMainAdmin = (username, password) => {
   // For now, hardcoded credentials for main dashboard
-  const mainAdminUsername = process.env.MAIN_ADMIN_USERNAME || 'Admin';
-  const mainAdminPassword = process.env.MAIN_ADMIN_PASSWORD || 'trafficBuddy@123';
+  const mainAdminUsername = process.env.MAIN_ADMIN_USERNAME;
+  const mainAdminPassword = process.env.MAIN_ADMIN_PASSWORD;
 
   if (username === mainAdminUsername && password === mainAdminPassword) {
     // Create token payload
@@ -138,7 +138,7 @@ const authenticateAnyUser = async (username, password) => {
     }
 
     const payload = {
-      id: division._id,
+      divisionId: division._id,
       divisionCode: division.code,
       divisionName: division.name,
       role: 'division_admin'
@@ -150,7 +150,7 @@ const authenticateAnyUser = async (username, password) => {
       success: true,
       token: token,
       division: {
-        id: division._id,
+        divisionId: division._id,
         name: division.name,
         code: division.code
       }
@@ -253,7 +253,7 @@ const divisionAccessOnly = (req, res, next) => {
   // For division admins, check if they're accessing their own division
   if (req.user.role === 'division_admin') {
     // If the request includes a division ID parameter, verify it matches the user's division
-    if (req.params.divisionId && req.params.divisionId !== req.user.id) {
+    if (req.params.divisionId && req.params.divisionId !== req.user.divisionId) {
       return res.status(403).json({
         success: false,
         message: 'Access denied: You can only access your own division'
@@ -286,7 +286,7 @@ const generatePasswordResetToken = async (divisionId) => {
 
     const resetToken = jwt.sign(
       { 
-        id: division._id,
+        divisionId: division._id,
         purpose: 'password_reset' 
       },
       JWT_SECRET,
@@ -326,7 +326,7 @@ const resetPassword = async (token, newPassword) => {
       };
     }
 
-    const divisionId = result.data.id;
+    const divisionId = result.data.divisionId;
     
     // Update password
     await Division.findByIdAndUpdate(divisionId, {
