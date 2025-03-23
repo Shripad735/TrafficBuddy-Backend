@@ -47,11 +47,10 @@ exports.getAllQueries = async (req, res) => {
         }
       }
     }
-    
     // Check if user role is division_admin (from auth middleware)
     if (req.user && req.user.role === 'division_admin' && req.user.divisionId) {
       // Override any division filter - division admins can only see their own division's data
-      filter.division = mongoose.Types.ObjectId(req.user.divisionId);
+      filter.division = new mongoose.Types.ObjectId(req.user.divisionId);
     }
     
     // Search functionality
@@ -437,7 +436,6 @@ exports.broadcastMessageToVolunteers = async (req, res) => {
 exports.getQueriesByDivision = async (req, res) => {
   try {
     const { division } = req.params;
-    console.log('Division:', division);
     
     let filter = {};
     if (division && division !== 'NOT_SPECIFIED') {
@@ -456,7 +454,7 @@ exports.getQueriesByDivision = async (req, res) => {
     // Check if user role is division_admin (from auth middleware)
     if (req.user && req.user.role === 'division_admin' && req.user.divisionId) {
       // Override any division filter - division admins can only see their own division's data
-      filter.division = mongoose.Types.ObjectId(req.user.divisionId);
+      filter.division = new mongoose.Types.ObjectId(req.user.divisionId);
     }
     
     console.log(`Querying DB with filter:`, filter);
@@ -470,10 +468,6 @@ exports.getQueriesByDivision = async (req, res) => {
     return res.status(200).json({
       success: true,
       count: queries.length,
-      timeRange: {
-        start: startDate,
-        end: endDate
-      },
       data: queries
     });
   } catch (error) {
@@ -489,7 +483,6 @@ exports.getQueriesByDivision = async (req, res) => {
 exports.getqueriesbytimefilter = async (req, res) => {
   try {
     const { start, end, division} = req.query;
-    console.log('Division:', division);
     
     if (!start || !end) {
       return res.status(400).json({
@@ -538,7 +531,7 @@ exports.getqueriesbytimefilter = async (req, res) => {
     // Check if user role is division_admin (from auth middleware)
     if (req.user && req.user.role === 'division_admin' && req.user.divisionId) {
       // Override any division filter - division admins can only see their own division's data
-      filter.division = mongoose.Types.ObjectId(req.user.divisionId);
+      filter.division = new mongoose.Types.ObjectId(req.user.divisionId);
     }
 
     console.log(`Querying DB with filter:`, filter);
@@ -570,7 +563,6 @@ exports.getqueriesbytimefilter = async (req, res) => {
 exports.getStatsByDivision = async (req, res) => {
   try {
     const { division } = req.params;
-    console.log('Division:', division);
     
     if (!division) {
       return res.status(400).json({
@@ -579,7 +571,7 @@ exports.getStatsByDivision = async (req, res) => {
       });
     }
 
-    filter = {}
+    let filter = {}
     if (division && division !== 'NOT_SPECIFIED') {
       // Handle both ObjectId and string representations
       if (mongoose.Types.ObjectId.isValid(division)) {
@@ -596,7 +588,7 @@ exports.getStatsByDivision = async (req, res) => {
     // Check if user role is division_admin (from auth middleware)
     if (req.user && req.user.role === 'division_admin' && req.user.divisionId) {
       // Override any division filter - division admins can only see their own division's data
-      filter.division = mongoose.Types.ObjectId(req.user.divisionId);
+      filter.division = new mongoose.Types.ObjectId(req.user.divisionId);
     }
     
     // Get counts for each status
@@ -615,6 +607,35 @@ exports.getStatsByDivision = async (req, res) => {
     const joinRequest = await Query.countDocuments({ ...filter, query_type: 'Join Request' });
     const generalReport = await Query.countDocuments({ ...filter, query_type: 'General Report' });
 
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    
+    const recentQueries = await Query.countDocuments({ ...filter, timestamp: { $gte: thirtyDaysAgo}});
+    const recentResolved = await Query.countDocuments({
+      ...filter,
+      status: 'Resolved',
+      resolved_at: { $gte: thirtyDaysAgo }
+    });
+    
+    // Get daily counts for the past month for a chart
+    const dailyCounts = await Query.aggregate([
+      {
+        $match: {
+          ...filter, 
+          timestamp: { $gte: thirtyDaysAgo } 
+        } 
+      },
+      {
+        $group: {
+          _id: { 
+            $dateToString: { format: "%Y-%m-%d", date: "$timestamp" } 
+          },
+          count: { $sum: 1 }
+        }
+      },
+      { $sort: { _id: 1 } }
+    ]);
+
     return res.status(200).json({
       success: true,
       stats: {
@@ -629,6 +650,11 @@ exports.getStatsByDivision = async (req, res) => {
           suggestion,
           joinRequest,
           generalReport
+        },
+        recent: {
+          totalQueries: recentQueries,
+          resolvedQueries: recentResolved,
+          dailyCounts
         }
       }
     });
@@ -645,28 +671,37 @@ exports.getStatsByDivision = async (req, res) => {
 // Get query statistics with division filtering
 exports.getQueryStatistics = async (req, res) => {
   try {
+
+    filter = {}
+
+    // Check if user role is division_admin (from auth middleware)
+    if (req.user && req.user.role === 'division_admin' && req.user.divisionId) {
+      // Override any division filter - division admins can only see their own division's data
+      filter.division = new mongoose.Types.ObjectId(req.user.divisionId);
+    }
+
     // Get counts for each status
-    const pending = await Query.countDocuments({ status: 'Pending' });
-    const inProgress = await Query.countDocuments({ status: 'In Progress' });
-    const resolved = await Query.countDocuments({ status: 'Resolved' });
-    const rejected = await Query.countDocuments({ status: 'Rejected' });
+    const pending = await Query.countDocuments({ ...filter, status: 'Pending' });
+    const inProgress = await Query.countDocuments({ ...filter, status: 'In Progress' });
+    const resolved = await Query.countDocuments({ ...filter, status: 'Resolved' });
+    const rejected = await Query.countDocuments({ ...filter, status: 'Rejected' });
     
     // Get counts for each query type
-    const trafficViolation = await Query.countDocuments({ query_type: 'Traffic Violation' });
-    const trafficCongestion = await Query.countDocuments({ query_type: 'Traffic Congestion' });
-    const accident = await Query.countDocuments({ query_type: 'Accident' });
-    const roadDamage = await Query.countDocuments({ query_type: 'Road Damage' });
-    const illegalParking = await Query.countDocuments({ query_type: 'Illegal Parking' });
-    const suggestion = await Query.countDocuments({ query_type: 'Suggestion' });
-    const joinRequest = await Query.countDocuments({ query_type: 'Join Request' });
-    const generalReport = await Query.countDocuments({ query_type: 'General Report' });
-    
-    // Get recent statistics (last 30 days)
+    const trafficViolation = await Query.countDocuments({ ...filter, query_type: 'Traffic Violation' });
+    const trafficCongestion = await Query.countDocuments({ ...filter, query_type: 'Traffic Congestion' });
+    const accident = await Query.countDocuments({ ...filter, query_type: 'Accident' });
+    const roadDamage = await Query.countDocuments({ ...filter, query_type: 'Road Damage' });
+    const illegalParking = await Query.countDocuments({ ...filter, query_type: 'Illegal Parking' });
+    const suggestion = await Query.countDocuments({ ...filter, query_type: 'Suggestion' });
+    const joinRequest = await Query.countDocuments({ ...filter, query_type: 'Join Request' });
+    const generalReport = await Query.countDocuments({ ...filter, query_type: 'General Report' });
+
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
     
-    const recentQueries = await Query.countDocuments({ timestamp: { $gte: thirtyDaysAgo } });
-    const recentResolved = await Query.countDocuments({ 
+    const recentQueries = await Query.countDocuments({ ...filter, timestamp: { $gte: thirtyDaysAgo}});
+    const recentResolved = await Query.countDocuments({
+      ...filter,
       status: 'Resolved',
       resolved_at: { $gte: thirtyDaysAgo }
     });

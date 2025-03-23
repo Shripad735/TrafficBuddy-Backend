@@ -30,6 +30,8 @@ const uploadRoutes = require('./routes/upload');
 const queryRoutes = require('./routes/queryRoutes');
 const dashboardRoutes = require('./routes/dashboardRoutes');
 const authRoutes = require('./routes/authRoutes');
+
+const userRoutes = require('./routes/userRoutes');
 const reportRoutes = require('./routes/reportRoutes');
 
 
@@ -42,10 +44,19 @@ const requiredEnvVars = [
   'CLOUDFLARE_R2_PUBLIC_URL',
   'TWILIO_AUTH_TOKEN',
   'EMAIL_USER',
-  'EMAIL_PASS'
+  'EMAIL_PASS',
+  'MAIN_ADMIN_USERNAME',
+  'MAIN_ADMIN_PASSWORD'
 ];
 
 const missingEnvVars = requiredEnvVars.filter(envVar => !process.env[envVar]);
+
+if (!process.env.MAIN_ADMIN_USERNAME || !process.env.MAIN_ADMIN_PASSWORD) {
+  console.error('Missing main admin credentials in environment variables');
+  console.error('MAIN_ADMIN_USERNAME & MAIN_ADMIN_PASSWORD are required');
+  console.error('Please check your .env file');
+  process.exit(1);
+}
 
 if (missingEnvVars.length > 0) {
   console.error('Missing required environment variables:');
@@ -147,8 +158,9 @@ app.use('/api/auth', authRoutes);
 app.use('/api/queries', queryRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/uploads', uploadRoutes);
-app.use('/api', reportRoutes);
 
+app.use('/api/users', userRoutes);
+app.use('/api', reportRoutes);
 
 // Get Twilio client
 const client = getTwilioClient();
@@ -993,9 +1005,9 @@ app.get('/api/divisions', async (req, res) => {
 });
 
 // Get a specific division
-app.get('/api/divisions/:id', async (req, res) => {
+app.get('/api/divisions/:divisionId', async (req, res) => {
   try {
-    const division = await Division.findById(req.params.id).select('-dashboard_credentials.password');
+    const division = await Division.findById(req.params.divisionId).select('-dashboard_credentials.password');
     
     if (!division) {
       return res.status(404).json({ success: false, message: 'Division not found' });

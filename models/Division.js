@@ -12,18 +12,24 @@ const DivisionSchema = new mongoose.Schema({
     }
   },
   officers: [{
-    name: String,
-    phone: String, // WhatsApp number with country code
-    isActive: Boolean
+    name: { type: String, required: true },
+    phone: { type: String, required: true }, // WhatsApp number with country code
+    alternate_phone: { type: String },
+    email: { type: String },
+    post: { type: String },
+    isActive: { type: Boolean, default: true }, // True if currently assigned, false if relieved
+    joinedAt: { type: Date, default: Date.now },
+    relievedAt: { type: Date, default: null },
+    status: { type: String, enum: ['active', 'relieved'], default: 'active' }
   }],
   dashboard_url: String, // Optional: If each division has a separate access URL
   dashboard_credentials: {
     username: String,
     password: String
   },
-  email: { type: String },
-  alternate_phone: { type: String }
 });
+
+module.exports = mongoose.model('Division', DivisionSchema);
 
 // Add geospatial index
 DivisionSchema.index({ "boundaries": "2dsphere" });
