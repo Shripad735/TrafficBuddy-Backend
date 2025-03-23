@@ -19,6 +19,7 @@ const querySchema = new mongoose.Schema({
   timestamp: { type: Date, default: Date.now },
   resolution_note: String,
   resolved_at: Date,
+  resolution_image_url: String, // New field for resolution proof images
   division: { 
     type: mongoose.Schema.Types.ObjectId, 
     ref: 'Division' 

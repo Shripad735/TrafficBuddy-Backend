@@ -30,8 +30,10 @@ const uploadRoutes = require('./routes/upload');
 const queryRoutes = require('./routes/queryRoutes');
 const dashboardRoutes = require('./routes/dashboardRoutes');
 const authRoutes = require('./routes/authRoutes');
+
 const userRoutes = require('./routes/userRoutes');
 const reportRoutes = require('./routes/reportRoutes');
+
 
 // Check for required environment variables
 const requiredEnvVars = [
@@ -156,6 +158,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/queries', queryRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/uploads', uploadRoutes);
+
 app.use('/api/users', userRoutes);
 app.use('/api', reportRoutes);
 
@@ -330,9 +333,8 @@ app.post('/api/report', upload.single('image'), async (req, res) => {
             `Type: ${queryType}\n` +
             `Location: ${address || 'See map link'}\n` +
             `Description: ${description}\n\n` +
-            `To resolve this issue, click: https://trafficbuddy.pcmc.gov.in/resolve/pending`;
-          
-          // Send messages to officers
+            `To resolve this issue, click: ${process.env.SERVER_URL}/resolve.html?id=${newQuery._id}`;
+                    // Send messages to officers
           for (const officer of officersToNotify) {
             try {
               await sendWhatsAppMessage(officer.phone, notificationMessage);
@@ -630,12 +632,11 @@ app.post('/webhook', express.urlencoded({ extended: true }), async (req, res) =>
           
           if (officersToNotify.length > 0) {
             const notificationMessage = `🚨 New Traffic Report in ${matchingDivision.name}\n\n` +
-              `Type: ${reportType}\n` +
-              `Location: ${locationAddress || 'See map link'}\n` +
-              `Description: ${userMessage}\n\n` +
-              `To resolve this issue, click: https://trafficbuddy.pcmc.gov.in/resolve/pending`;
-            
-            // Send messages to officers
+              `Type: ${queryType}\n` +
+              `Location: ${address || 'See map link'}\n` +
+              `Description: ${description}\n\n` +
+              `To resolve this issue, click: ${process.env.SERVER_URL}/resolve.html?id=${newQuery._id}`;
+              // Send messages to officers
             for (const officer of officersToNotify) {
               try {
                 await sendWhatsAppMessage(officer.phone, notificationMessage);
@@ -807,12 +808,11 @@ app.post('/webhook', express.urlencoded({ extended: true }), async (req, res) =>
             
             if (officersToNotify.length > 0) {
               const notificationMessage = `🚨 New Traffic Report in ${matchingDivision.name}\n\n` +
-                `Type: ${reportType}\n` +
-                `Location: ${locationAddress || 'See map link'}\n` +
+                `Type: ${queryType}\n` +
+                `Location: ${address || 'See map link'}\n` +
                 `Description: ${description}\n\n` +
-                `To resolve this issue, click: https://trafficbuddy.pcmc.gov.in/resolve/pending`;
-              
-              // Send messages to officers
+                `To resolve this issue, click: ${process.env.SERVER_URL}/resolve.html?id=${newQuery._id}`;
+                            // Send messages to officers
               for (const officer of officersToNotify) {
                 try {
                   await sendWhatsAppMessage(officer.phone, notificationMessage);
@@ -984,6 +984,14 @@ app.post('/webhook', express.urlencoded({ extended: true }), async (req, res) =>
     console.error('Error processing webhook:', error);
     res.status(500).send('<?xml version="1.0" encoding="UTF-8"?><Response></Response>');
   }
+});
+
+app.get('/resolve.html', (req, res) => {
+  res.sendFile(path.join(__dirname, 'resolve.html'));
+});
+
+app.get('/pending-reports.html', (req, res) => {
+  res.sendFile(path.join(__dirname, 'pending-reports.html'));
 });
 
 app.get('/api/divisions', async (req, res) => {
