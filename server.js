@@ -24,6 +24,7 @@ const connectDB = require('./config/database');
 const Query = require('./models/Query');
 const Session = require('./models/Session');
 const { Division } = require('./models/Division');
+const TeamApplication = require('./models/TeamApplication');
 
 // Import routes
 const uploadRoutes = require('./routes/upload');
@@ -33,6 +34,8 @@ const authRoutes = require('./routes/authRoutes');
 
 const userRoutes = require('./routes/userRoutes');
 const reportRoutes = require('./routes/reportRoutes');
+const teamApplicationRoutes = require('./routes/teamApplicationRoutes');
+
 
 
 // Check for required environment variables
@@ -508,9 +511,11 @@ app.post('/webhook', express.urlencoded({ extended: true }), async (req, res) =>
         newState = 'AWAITING_REPORT';
         newLastOption = userMessage;
       } else if (userMessage === '6') {
-        // Traffic signal information
-        responseMessage = getText('TRAFFIC_SIGNAL_INFO', userLanguage);
-        newState = 'MENU';
+        const captureUrl = getCaptureUrl(userNumber, userMessage);
+        const instructions = getReportInstructionMessage(captureUrl, userLanguage);
+        responseMessage = getText('CAMERA_INSTRUCTIONS', userLanguage, instructions);
+        newState = 'AWAITING_REPORT';
+        newLastOption = userMessage;
       } else if (userMessage === '7') {
         // Suggestion
         const captureUrl = getCaptureUrl(userNumber, userMessage);
@@ -519,9 +524,24 @@ app.post('/webhook', express.urlencoded({ extended: true }), async (req, res) =>
         newState = 'AWAITING_SUGGESTION';
         newLastOption = userMessage;
       } else if (userMessage === '8') {
-        // Join Traffic Buddy team
-        responseMessage = getText('JOIN_REQUEST', userLanguage);
-        newState = 'AWAITING_JOIN';
+        // Handle join team request
+        try {
+          // Create a new application session
+          const sessionId = `join_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
+          
+          // Generate the form URL
+          const formUrl = `${process.env.SERVER_URL}/join-team.html?userId=${encodeURIComponent(userNumber)}&sessionId=${sessionId}`;
+          
+          // Send the link via WhatsApp
+          responseMessage = getText('JOIN_FORM_LINK', userLanguage, formUrl);
+          
+          // Update user state
+          newState = 'JOIN_TEAM_LINK_SENT';
+          newLastOption = '8';
+        } catch (error) {
+          console.error('Error handling join team request:', error);
+          responseMessage = 'Sorry, there was an error processing your request. Please try again later.';
+        }
       } else {
         // Invalid option
         responseMessage = getMainMenu(userLanguage);
@@ -544,6 +564,9 @@ app.post('/webhook', express.urlencoded({ extended: true }), async (req, res) =>
           break;
         case '5':
           reportType = 'Illegal Parking';
+          break;
+        case '6':
+          reportType = 'Traffic Signal Issue';
           break;
         case '7':
           reportType = 'Suggestion';
@@ -983,6 +1006,100 @@ app.post('/webhook', express.urlencoded({ extended: true }), async (req, res) =>
   } catch (error) {
     console.error('Error processing webhook:', error);
     res.status(500).send('<?xml version="1.0" encoding="UTF-8"?><Response></Response>');
+  }
+});
+
+// Add this to server.js, below your other endpoint definitions
+app.get('/join-team.html', (req, res) => {
+  res.sendFile(path.join(__dirname, 'join-team.html'));
+});
+
+// Endpoint to handle form submission 
+app.post('/api/join-team', upload.single('aadharDocument'), async (req, res) => {
+  try {
+    const { 
+      userId, 
+      sessionId, 
+      fullName, 
+      division,
+      motivation,
+      address,
+      phone,
+      email,
+      aadharNumber
+    } = req.body;
+    
+    // Validate required fields
+    if (!userId || !sessionId || !fullName || !division || !motivation || !address || !phone || !email || !aadharNumber) {
+      return res.status(400).json({
+        success: false,
+        error: 'All fields are required'
+      });
+    }
+    
+    // Check if there's a valid user session
+    const userSession = await Session.findOne({ user_id: userId });
+    if (!userSession) {
+      return res.status(404).json({
+        success: false,
+        error: 'User not found'
+      });
+    }
+    
+    // Calculate session expiry (24 hours from now)
+    const sessionExpires = new Date();
+    sessionExpires.setHours(sessionExpires.getHours() + 24);
+    
+    // Process aadhar document
+    let aadharDocumentUrl = null;
+    if (req.file) {
+      const imageBuffer = req.file.buffer;
+      const base64Image = `data:${req.file.mimetype};base64,${imageBuffer.toString('base64')}`;
+      aadharDocumentUrl = await uploadImageToR2(base64Image, 'TrafficBuddyDocs');
+    } else {
+      return res.status(400).json({
+        success: false,
+        error: 'Aadhar document is required'
+      });
+    }
+    
+    // Create new application
+    const application = new TeamApplication({
+      user_id: userId,
+      user_name: userSession.user_name || 'Unknown',
+      full_name: fullName,
+      division,
+      motivation,
+      address,
+      phone,
+      email,
+      aadhar_number: aadharNumber,
+      aadhar_document_url: aadharDocumentUrl,
+      status: 'Pending',
+      session_id: sessionId,
+      session_expires: sessionExpires
+    });
+    
+    await application.save();
+    
+    // Send confirmation message via WhatsApp
+    await sendWhatsAppMessage(
+      userId,
+      getText('JOIN_APPLICATION_RECEIVED', userSession.language || 'en', 
+              fullName, application._id.toString())
+    );
+    
+    return res.status(201).json({
+      success: true,
+      message: 'Application submitted successfully',
+      applicationId: application._id
+    });
+  } catch (error) {
+    console.error('Error submitting application:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Internal server error. Please try again later.'
+    });
   }
 });
 
