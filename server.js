@@ -31,6 +31,7 @@ const queryRoutes = require('./routes/queryRoutes');
 const dashboardRoutes = require('./routes/dashboardRoutes');
 const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
+const reportRoutes = require('./routes/reportRoutes');
 
 // Check for required environment variables
 const requiredEnvVars = [
@@ -156,6 +157,7 @@ app.use('/api/queries', queryRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/uploads', uploadRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api', reportRoutes);
 
 // Get Twilio client
 const client = getTwilioClient();
