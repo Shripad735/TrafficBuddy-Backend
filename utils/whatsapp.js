@@ -65,13 +65,12 @@ exports.notifyDivisionOfficers = async (query, division) => {
     const location = query.location?.address || `${query.location?.latitude}, ${query.location?.longitude}`;
     
     // Create notification message
-    const notificationMessage = `🚨 New Traffic Report in ${division.name}\n\n` +
-      `Type: ${query.query_type}\n` +
-      `Location: ${location}\n` +
-      `Description: ${query.description}\n\n` +
-      `To resolve this issue, click: https://trafficbuddy.pcmc.gov.in/resolve/${query._id}`;
-    
-    // Send messages to officers
+    const notificationMessage = `🚨 New Traffic Report in ${matchingDivision.name}\n\n` +
+      `Type: ${queryType}\n` +
+      `Location: ${address || 'See map link'}\n` +
+      `Description: ${description}\n\n` +
+      `To resolve this issue, click: ${process.env.SERVER_URL}/resolve.html?id=${newQuery._id}`;
+        // Send messages to officers
     for (const officer of officersToNotify) {
       try {
         // Ensure the 'to' number starts with 'whatsapp:+'

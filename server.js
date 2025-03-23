@@ -31,6 +31,10 @@ const queryRoutes = require('./routes/queryRoutes');
 const dashboardRoutes = require('./routes/dashboardRoutes');
 const authRoutes = require('./routes/authRoutes');
 
+const userRoutes = require('./routes/userRoutes');
+const reportRoutes = require('./routes/reportRoutes');
+
+
 // Check for required environment variables
 const requiredEnvVars = [
   'CLOUDFLARE_R2_BUCKET_NAME',
@@ -40,10 +44,19 @@ const requiredEnvVars = [
   'CLOUDFLARE_R2_PUBLIC_URL',
   'TWILIO_AUTH_TOKEN',
   'EMAIL_USER',
-  'EMAIL_PASS'
+  'EMAIL_PASS',
+  'MAIN_ADMIN_USERNAME',
+  'MAIN_ADMIN_PASSWORD'
 ];
 
 const missingEnvVars = requiredEnvVars.filter(envVar => !process.env[envVar]);
+
+if (!process.env.MAIN_ADMIN_USERNAME || !process.env.MAIN_ADMIN_PASSWORD) {
+  console.error('Missing main admin credentials in environment variables');
+  console.error('MAIN_ADMIN_USERNAME & MAIN_ADMIN_PASSWORD are required');
+  console.error('Please check your .env file');
+  process.exit(1);
+}
 
 if (missingEnvVars.length > 0) {
   console.error('Missing required environment variables:');
@@ -145,6 +158,9 @@ app.use('/api/auth', authRoutes);
 app.use('/api/queries', queryRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/uploads', uploadRoutes);
+
+app.use('/api/users', userRoutes);
+app.use('/api', reportRoutes);
 
 // Get Twilio client
 const client = getTwilioClient();
@@ -317,9 +333,8 @@ app.post('/api/report', upload.single('image'), async (req, res) => {
             `Type: ${queryType}\n` +
             `Location: ${address || 'See map link'}\n` +
             `Description: ${description}\n\n` +
-            `To resolve this issue, click: https://trafficbuddy.pcmc.gov.in/resolve/pending`;
-          
-          // Send messages to officers
+            `To resolve this issue, click: ${process.env.SERVER_URL}/resolve.html?id=${newQuery._id}`;
+                    // Send messages to officers
           for (const officer of officersToNotify) {
             try {
               await sendWhatsAppMessage(officer.phone, notificationMessage);
@@ -617,12 +632,11 @@ app.post('/webhook', express.urlencoded({ extended: true }), async (req, res) =>
           
           if (officersToNotify.length > 0) {
             const notificationMessage = `🚨 New Traffic Report in ${matchingDivision.name}\n\n` +
-              `Type: ${reportType}\n` +
-              `Location: ${locationAddress || 'See map link'}\n` +
-              `Description: ${userMessage}\n\n` +
-              `To resolve this issue, click: https://trafficbuddy.pcmc.gov.in/resolve/pending`;
-            
-            // Send messages to officers
+              `Type: ${queryType}\n` +
+              `Location: ${address || 'See map link'}\n` +
+              `Description: ${description}\n\n` +
+              `To resolve this issue, click: ${process.env.SERVER_URL}/resolve.html?id=${newQuery._id}`;
+              // Send messages to officers
             for (const officer of officersToNotify) {
               try {
                 await sendWhatsAppMessage(officer.phone, notificationMessage);
@@ -685,7 +699,7 @@ app.post('/webhook', express.urlencoded({ extended: true }), async (req, res) =>
           `Type: ${reportType}\n` +
           `Location: ${locationAddress || 'See map link'}\n` +
           `Description: ${userMessage}\n\n` +
-          `To resolve this issue, click: https://trafficbuddy.pcmc.gov.in/resolve/${newQuery._id}`;
+          `To resolve this issue, click: ${process.env.SERVER_URL}/resolve/${newQuery._id}`;
         
         // Resend the notification with the correct link
         for (const officer of notifiedOfficers) {
@@ -794,12 +808,11 @@ app.post('/webhook', express.urlencoded({ extended: true }), async (req, res) =>
             
             if (officersToNotify.length > 0) {
               const notificationMessage = `🚨 New Traffic Report in ${matchingDivision.name}\n\n` +
-                `Type: ${reportType}\n` +
-                `Location: ${locationAddress || 'See map link'}\n` +
+                `Type: ${queryType}\n` +
+                `Location: ${address || 'See map link'}\n` +
                 `Description: ${description}\n\n` +
-                `To resolve this issue, click: https://trafficbuddy.pcmc.gov.in/resolve/pending`;
-              
-              // Send messages to officers
+                `To resolve this issue, click: ${process.env.SERVER_URL}/resolve.html?id=${newQuery._id}`;
+                            // Send messages to officers
               for (const officer of officersToNotify) {
                 try {
                   await sendWhatsAppMessage(officer.phone, notificationMessage);
@@ -862,7 +875,7 @@ app.post('/webhook', express.urlencoded({ extended: true }), async (req, res) =>
             `Type: ${reportType}\n` +
             `Location: ${locationAddress || 'See map link'}\n` +
             `Description: ${description}\n\n` +
-            `To resolve this issue, click: https://trafficbuddy.pcmc.gov.in/resolve/${newQuery._id}`;
+            `To resolve this issue, click: ${process.env.SERVER_URL}/resolve/${newQuery._id}`;
           
           // Resend the notification with the correct link
           for (const officer of notifiedOfficers) {
@@ -973,6 +986,14 @@ app.post('/webhook', express.urlencoded({ extended: true }), async (req, res) =>
   }
 });
 
+app.get('/resolve.html', (req, res) => {
+  res.sendFile(path.join(__dirname, 'resolve.html'));
+});
+
+app.get('/pending-reports.html', (req, res) => {
+  res.sendFile(path.join(__dirname, 'pending-reports.html'));
+});
+
 app.get('/api/divisions', async (req, res) => {
   try {
     const divisions = await Division.find().select('name code');
@@ -984,9 +1005,9 @@ app.get('/api/divisions', async (req, res) => {
 });
 
 // Get a specific division
-app.get('/api/divisions/:id', async (req, res) => {
+app.get('/api/divisions/:divisionId', async (req, res) => {
   try {
-    const division = await Division.findById(req.params.id).select('-dashboard_credentials.password');
+    const division = await Division.findById(req.params.divisionId).select('-dashboard_credentials.password');
     
     if (!division) {
       return res.status(404).json({ success: false, message: 'Division not found' });

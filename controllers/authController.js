@@ -1,5 +1,5 @@
 const authService = require('../services/authService');
-const Division = require('../models/Division');
+const { Division } = require('../models/Division');
 
 // Login handler
 exports.login = async (req, res) => {
