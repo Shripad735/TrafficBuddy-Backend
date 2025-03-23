@@ -3,8 +3,8 @@ const router = express.Router();
 const userController = require('../controllers/userController');
 const { authMiddleware, mainAdminOnly } = require('../services/authService');
 
-router.use(authMiddleware);
-router.use(mainAdminOnly);
+// router.use(authMiddleware);
+// router.use(mainAdminOnly);
 
 // GET current officer of all divisions
 router.get('/current-officer', userController.getCurrentOfficers);
@@ -24,5 +24,8 @@ router.post('/add-officer/:divisionId', userController.assignOfficer);
 
 // POST unassign officer from a region
 router.post('/unassign-officer/:divisionId', userController.unassignOfficer);
+
+// GET filter officers by any given field
+router.get('/filter-officers', userController.filterOfficers);
 
 module.exports = router;

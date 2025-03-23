@@ -19,7 +19,7 @@ exports.getCurrentOfficers = async (req, res) => {
 };
 
 // GET /current-officer/:divisionId
-// This function retrieves the current officer of a specific division by divisionId.
+// This function retrieves the current officer of a specific division by divisionId
 exports.getCurrentOfficer = async (req, res) => {
   try {
     const { divisionId } = req.params;
@@ -162,5 +162,37 @@ exports.unassignOfficer = async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, message: 'Failed to unassign officer' });
+  }
+};
+
+// GET /filter-officers
+// Filters officers based on query params like name, phone, status, post, etc.
+exports.filterOfficers = async (req, res) => {
+  try {
+    const { searchTerm, status } = req.query;
+
+    const divisions = await Division.find();
+    const filteredDivisions = divisions.map(division => {
+      const filteredOfficers = division.officers.filter(officer => {
+        return (
+          (!searchTerm || 
+          officer.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+          officer.phone.includes(searchTerm) || 
+          officer.post.toLowerCase().includes(searchTerm.toLowerCase())) &&
+          (!status || officer.status.toLowerCase() === status.toLowerCase())
+        );
+      });
+
+      return {
+        divisionId: division._id,
+        divisionName: division.name,
+        officers: filteredOfficers
+      };
+    });
+
+    res.status(200).json({ success: true, divisions: filteredDivisions });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Failed to filter officers' });
   }
 };
