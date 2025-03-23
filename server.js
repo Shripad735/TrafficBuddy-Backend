@@ -699,7 +699,7 @@ app.post('/webhook', express.urlencoded({ extended: true }), async (req, res) =>
           `Type: ${reportType}\n` +
           `Location: ${locationAddress || 'See map link'}\n` +
           `Description: ${userMessage}\n\n` +
-          `To resolve this issue, click: https://trafficbuddy.pcmc.gov.in/resolve/${newQuery._id}`;
+          `To resolve this issue, click: ${process.env.SERVER_URL}/resolve/${newQuery._id}`;
         
         // Resend the notification with the correct link
         for (const officer of notifiedOfficers) {
@@ -875,7 +875,7 @@ app.post('/webhook', express.urlencoded({ extended: true }), async (req, res) =>
             `Type: ${reportType}\n` +
             `Location: ${locationAddress || 'See map link'}\n` +
             `Description: ${description}\n\n` +
-            `To resolve this issue, click: https://trafficbuddy.pcmc.gov.in/resolve/${newQuery._id}`;
+            `To resolve this issue, click: ${process.env.SERVER_URL}/resolve/${newQuery._id}`;
           
           // Resend the notification with the correct link
           for (const officer of notifiedOfficers) {
