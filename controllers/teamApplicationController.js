@@ -154,7 +154,7 @@ exports.getAllApplications = async (req, res) => {
       .limit(parseInt(limit));
 
     const total = await TeamApplication.countDocuments(filter);
-
+    
     return res.status(200).json({
       success: true,
       count: applications.length,

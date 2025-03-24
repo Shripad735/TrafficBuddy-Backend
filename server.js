@@ -164,6 +164,7 @@ app.use('/api/uploads', uploadRoutes);
 
 app.use('/api/users', userRoutes);
 app.use('/api', reportRoutes);
+app.use('/api/applications', teamApplicationRoutes);
 
 // Get Twilio client
 const client = getTwilioClient();
