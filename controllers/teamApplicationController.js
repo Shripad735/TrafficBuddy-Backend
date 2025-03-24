@@ -197,6 +197,35 @@ exports.getApplicationById = async (req, res) => {
   }
 };
 
+exports.getApplicationStatistics = async (req, res) => {
+  try {
+    const { division } = req.query;
+    let filter = {};
+    if (division) filter.division = division;
+
+    const totalApplications = await TeamApplication.countDocuments(filter);
+    const pendingApplications = await TeamApplication.countDocuments({ ...filter, status: 'Pending' });
+    const approvedApplications = await TeamApplication.countDocuments({ ...filter, status: 'Approved' });
+    const rejectedApplications = await TeamApplication.countDocuments({ ...filter, status: 'Rejected' });
+
+    return res.status(200).json({
+      success: true,
+      total: totalApplications,
+      pending: pendingApplications,
+      approved: approvedApplications,
+      rejected: rejectedApplications
+    });
+
+  } catch (error) {
+    console.error('Error fetching application statistics:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
+  }
+}
+
 // Update application status
 exports.updateApplicationStatus = async (req, res) => {
   try {

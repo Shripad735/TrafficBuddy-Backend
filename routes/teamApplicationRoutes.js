@@ -19,7 +19,12 @@ router.get('/', teamApplicationController.getAllApplications);
 // Get information of a single application
 router.get('/:id([0-9a-fA-F]{24})', teamApplicationController.getApplicationById);
 
+// Get statistics of all applications
+router.get('/statistics', teamApplicationController.getApplicationStatistics);
+
 // Update application status
 router.put('/:id([0-9a-fA-F]{24})/status', teamApplicationController.updateApplicationStatus);
+// http://localhost:8000/api/applications/5f7b7b7b7b7b7b7b7b7b7b7/status => PUT
+
 
 module.exports = router;
