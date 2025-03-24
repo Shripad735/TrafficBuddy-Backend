@@ -16,6 +16,9 @@ router.post('/submit', upload.single('aadharDocument'), teamApplicationControlle
 // Get all applications with filtering and pagination
 router.get('/', teamApplicationController.getAllApplications);
 
+// Get information of a single application
+router.get('/:id([0-9a-fA-F]{24})', teamApplicationController.getApplicationById);
+
 // Update application status
 router.put('/:id([0-9a-fA-F]{24})/status', teamApplicationController.updateApplicationStatus);
 

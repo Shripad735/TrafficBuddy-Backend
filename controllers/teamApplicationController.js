@@ -173,6 +173,30 @@ exports.getAllApplications = async (req, res) => {
   }
 };
 
+exports.getApplicationById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const application = await TeamApplication.findById(id);
+    if (!application) {
+      return res.status(404).json({
+        success: false,
+        message: 'Application not found'
+      });
+    }
+    return res.status(200).json({
+      success: true,
+      data: application
+    });
+  } catch (error) {
+    console.error('Error fetching application:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
+  }
+};
+
 // Update application status
 exports.updateApplicationStatus = async (req, res) => {
   try {
