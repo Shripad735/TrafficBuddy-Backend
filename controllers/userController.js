@@ -9,7 +9,7 @@ exports.getCurrentOfficers = async (req, res) => {
     const officers = divisions.map(div => ({
       divisionId: div._id,
       divisionName: div.name,
-      currentOfficer: div.officers.length ? div.officers[div.officers.length - 1] : null
+      officer: div.officers.length ? div.officers[div.officers.length - 1] : null
     }));
     res.status(200).json({ success: true, officers });
   } catch (err) {
@@ -72,8 +72,8 @@ exports.updateOfficer = async (req, res) => {
     const { divisionId } = req.params;
     const { name, phone, alternate_phone, email, post } = req.body;
     
-    console.log(name, phone, alternate_phone, email, post);
-    console.log(divisionId);
+    // console.log(name, phone, alternate_phone, email, post);
+    // console.log(divisionId);
     
     if (!mongoose.isValidObjectId(divisionId)) return res.status(400).json({ success: false, message: 'Invalid Division ID' });
     
@@ -103,8 +103,8 @@ exports.assignOfficer = async (req, res) => {
   try {
     const { divisionId } = req.params;
     const { name, phone, alternate_phone, email, post } = req.body;
-    console.log(name, phone, alternate_phone, email, post);
-    console.log(divisionId);
+    // console.log(name, phone, alternate_phone, email, post);
+    // console.log(divisionId);
     
     if (!name || !phone) return res.status(400).json({ success: false, message: 'Name and phone required' });
     if (!mongoose.isValidObjectId(divisionId)) return res.status(400).json({ success: false, message: 'Invalid Division ID' });
@@ -172,25 +172,27 @@ exports.filterOfficers = async (req, res) => {
     const { searchTerm, status } = req.query;
 
     const divisions = await Division.find();
-    const filteredDivisions = divisions.map(division => {
-      const filteredOfficers = division.officers.filter(officer => {
-        return (
+    const filteredOfficers = [];
+
+    divisions.forEach(division => {
+      division.officers.forEach(officer => {
+        if (
           (!searchTerm || 
           officer.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
           officer.phone.includes(searchTerm) || 
           officer.post.toLowerCase().includes(searchTerm.toLowerCase())) &&
-          (!status || officer.status.toLowerCase() === status.toLowerCase())
-        );
-      });
-
-      return {
+          (!status || status == "all" || officer.status.toLowerCase() === status.toLowerCase())
+        ) {
+          filteredOfficers.push({
         divisionId: division._id,
         divisionName: division.name,
-        officers: filteredOfficers
-      };
+            officer 
+          });
+        }
+      });
     });
 
-    res.status(200).json({ success: true, divisions: filteredDivisions });
+    res.status(200).json({ success: true, officers: filteredOfficers });
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, message: 'Failed to filter officers' });
