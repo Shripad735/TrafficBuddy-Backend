@@ -17,6 +17,7 @@ exports.getAllQueries = async (req, res) => {
       query_type,
       sort = 'timestamp',
       order = 'desc',
+      aggregate = false,
       search,
       division
     } = req.query;
@@ -67,25 +68,67 @@ exports.getAllQueries = async (req, res) => {
     const sortDirection = order.toLowerCase() === 'asc' ? 1 : -1;
     const sortOptions = {};
     sortOptions[sort] = sortDirection;
+    const totalQueries = await Query.countDocuments(filter);
     
     // Execute query with pagination
-    const queries = await Query.find(filter)
+    console.log("Aggregate:", aggregate);
+    if(aggregate === 'false' || aggregate === false){
+      const queries = await Query.find(filter)
       .populate('division', 'name code')
       .sort(sortOptions)
       .skip(skip)
       .limit(parseInt(limit));
-    
-    // Get total count for pagination
-    const totalQueries = await Query.countDocuments(filter);
-    
-    return res.status(200).json({
-      success: true,
-      count: queries.length,
-      total: totalQueries,
-      totalPages: Math.ceil(totalQueries / limit),
-      currentPage: parseInt(page),
-      data: queries
-    });
+
+      console.log("NORMAL: ",totalQueries, queries.length);
+      
+      return res.status(200).json({
+        success: true,
+        count: queries.length,
+        total: totalQueries,
+        totalPages: Math.ceil(totalQueries / limit),
+        currentPage: parseInt(page),
+        data: queries
+      });
+    }else{
+      const all_queries = [];
+      const pending_queries = await Query.find({ ...filter, status: 'Pending' })
+        .populate('division', 'name code')
+        .sort(sortOptions)
+        .skip(skip)
+        .limit(parseInt(limit));
+      all_queries.push(...pending_queries);
+      const in_progress_queries = await Query.find({ ...filter, status: 'In Progress' })
+        .populate('division', 'name code')
+        .sort(sortOptions)
+        .skip(skip)
+        .limit(parseInt(limit));
+      all_queries.push(...in_progress_queries);
+      const resolved_queries = await Query.find({ ...filter, status: 'Resolved' })
+        .populate('division', 'name code')
+        .sort(sortOptions)
+        .skip(skip)
+        .limit(parseInt(limit));
+      all_queries.push(...resolved_queries);
+      const rejected_queries = await Query.find({ ...filter, status: 'Rejected' })
+        .populate('division', 'name code')
+        .sort(sortOptions)
+        .skip(skip)
+        .limit(parseInt(limit));
+      all_queries.push(...rejected_queries);
+      const queries = all_queries.filter((query, index, self) =>
+        index === self.findIndex((q) => q._id.toString() === query._id.toString())
+      );
+      console.log("AGGR: ",totalQueries, queries.length);
+      return res.status(200).json({
+        success: true,
+        count: queries.length,
+        total: totalQueries,
+        totalPages: Math.ceil(totalQueries / limit),
+        currentPage: parseInt(page),
+        data: queries
+      });
+
+    }
   } catch (error) {
     console.error('Error fetching queries:', error);
     return res.status(500).json({
