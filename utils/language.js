@@ -1,12 +1,12 @@
 const translations = {
     // Main menu translations
     'WELCOME_MESSAGE': {
-      'en': `*Welcome to Traffic Buddy Pimpari Chinchwad!* 🚦
+      'en': `*Welcome to Traffic Buddy Pimpri Chinchwad!* 🚦
   
   Choose an option by typing the number:
   1️⃣ Report Traffic Violation
   2️⃣ Report Traffic Congestion
-  3️⃣ Report Accident
+  3️⃣ Report Anomaly
   4️⃣ Report Road Damage
   5️⃣ Report Illegal Parking
   6️⃣ Traffic Signal Issue

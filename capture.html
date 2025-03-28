@@ -185,7 +185,7 @@
                     // Automatically close after 3 seconds
                     setTimeout(() => {
                         window.location.href = 'https://wa.me/14155238886'; // Return to WhatsApp
-                    }, 3000);
+                    }, 2000);
                 } else {
                     const errorData = await response.json();
                     throw new Error(errorData.error || 'Failed to submit report');
