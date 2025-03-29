@@ -69,6 +69,21 @@ const translations = {
   'en': (instructionMessage) => `${instructionMessage}`,
   'mr': (instructionMessage) => `${instructionMessage}`
 },
+REPORT_CONFIRMATION: {
+  en: "Thank you! Your *{0}* report has been submitted successfully and assigned to the *{1}* division. You will be notified when there are updates.",
+  hi: "धन्यवाद! आपकी *{0}* रिपोर्ट सफलतापूर्वक जमा की गई है और *{1}* डिवीजन को सौंपी गई है। अपडेट होने पर आपको सूचित किया जाएगा।",
+  mr: "धन्यवाद! आपला *{0}* अहवाल यशस्वीरित्या सबमिट केला आहे आणि *{1}* विभागाला नियुक्त केला आहे. अपडेट झाल्यावर आपल्याला सूचित केले जाईल."
+},
+REPORT_ERROR: {
+  en: "We're sorry, but there was an error processing your report. Please try again later.",
+  hi: "हमें खेद है, लेकिन आपकी रिपोर्ट प्रोसेस करने में त्रुटि हुई। कृपया बाद में पुनः प्रयास करें।",
+  mr: "क्षमस्व, पण आपला अहवाल प्रक्रिया करताना त्रुटी आली. कृपया नंतर पुन्हा प्रयत्न करा."
+},
+LOCATION_OUTSIDE_JURISDICTION: {
+  en: "We're sorry, but the location you've reported appears to be outside our jurisdiction. We can only process reports within PCMC limits.",
+  hi: "हमें खेद है, लेकिन आपके द्वारा रिपोर्ट की गई स्थान हमारे क्षेत्राधिकार के बाहर लगती है। हम केवल PCMC सीमाओं के भीतर रिपोर्ट प्रोसेस कर सकते हैं।",
+  mr: "क्षमस्व, पण आपण कळवलेले स्थान आमच्या अधिकारक्षेत्राबाहेर असल्याचे दिसते. आम्ही फक्त PCMC सीमेत अहवाल प्रक्रिया करू शकतो."
+},
     
     // Specific report type responses
     'REPORT_RESPONSE': {
