@@ -5,7 +5,11 @@ const path = require('path');
 const multer = require('multer');
 const cors = require('cors');
 const NodeCache = require('node-cache');
-const locationCache = new NodeCache({ stdTTL: 3600 }); // 1 hour cache for location data
+const locationCache = new NodeCache({ 
+  stdTTL: 86400, // Cache for 24 hours (increased from 1 hour)
+  checkperiod: 3600, // Check for expired keys every hour
+  useClones: false // Don't clone objects for better performance
+}); 
 
 // Load environment variables
 dotenv.config();
@@ -75,7 +79,7 @@ if (missingEnvVars.length > 0) {
 // Replace the findDivisionForLocation function with this improved version
 
 // Replace the existing findDivisionForLocation function with this fixed version
-// Improved findDivisionForLocation without hardcoding
+// Update the findDivisionForLocation function to remove fallback to DIGHI ALANDI
 async function findDivisionForLocation(latitude, longitude) {
   try {
     // Input validation
@@ -98,105 +102,73 @@ async function findDivisionForLocation(latitude, longitude) {
     const cachedDivision = locationCache.get(cacheKey);
     if (cachedDivision) {
       console.log(`Cache hit for location: ${cacheKey}`);
-      // Get the full division document from database
-      return await Division.findById(cachedDivision._id);
+      // Get the full division document from database only if we have a valid division
+      if (cachedDivision._id) {
+        return await Division.findById(cachedDivision._id);
+      } else {
+        console.log('Cached location is marked as outside jurisdiction');
+        return null;
+      }
     }
     
     console.log(`Finding division for location: ${lat}, ${lng}`);
     
-    // Get all divisions with valid boundary data
-    const divisions = await Division.find({
-      'boundaries.coordinates': { $exists: true, $ne: [] }
-    });
-    console.log(`Checking against ${divisions.length} divisions with valid boundaries`);
+    // Get all divisions
+    const divisions = await Division.find();
+    console.log(`Checking against ${divisions.length} divisions`);
     
-    // If we don't have any divisions with valid boundaries, fallback to all divisions
-    if (divisions.length === 0) {
-      console.log('No divisions with valid boundaries found, using all divisions');
-      const allDivisions = await Division.find({});
-      
-      // Try to find a division by name "DIGHI ALANDI" as a fallback
-      // This is a temporary solution until proper boundary data is available
-      const dighiAlandiDivision = allDivisions.find(d => d.name === 'DIGHI ALANDI');
-      if (dighiAlandiDivision) {
-        console.log('Fallback: Using DIGHI ALANDI division');
-        
-        // Store division info in cache (just the ID and name)
-        locationCache.set(cacheKey, {
-          _id: dighiAlandiDivision._id,
-          name: dighiAlandiDivision.name
-        });
-        
-        return dighiAlandiDivision;
-      }
-      
-      // If we can't find DIGHI ALANDI, use the first division as a last resort
-      if (allDivisions.length > 0) {
-        console.log(`Fallback: Using first available division: ${allDivisions[0].name}`);
-        
-        // Store division info in cache (just the ID and name)
-        locationCache.set(cacheKey, {
-          _id: allDivisions[0]._id,
-          name: allDivisions[0].name
-        });
-        
-        return allDivisions[0];
-      }
-      
+    // Define a bounding box for PCMC area (rough estimate)
+    // These coordinates represent a rectangular area covering PCMC
+    const pcmcBounds = {
+      minLat: 18.44, // Southern border
+      maxLat: 18.85, // Northern border
+      minLng: 73.69, // Western border
+      maxLng: 74.06  // Eastern border
+    };
+    
+    // Check if the location is even in the general PCMC area
+    if (lat < pcmcBounds.minLat || lat > pcmcBounds.maxLat || 
+        lng < pcmcBounds.minLng || lng > pcmcBounds.maxLng) {
+      console.log('Location is outside the PCMC area');
+      // Cache this location as outside jurisdiction
+      locationCache.set(cacheKey, { outside: true });
       return null;
     }
     
-    // Check each division's boundaries
+    // Test each division with valid boundaries
     for (const division of divisions) {
-      const divisionName = division.name;
-      console.log(`Checking if point ${lng},${lat} is in division ${divisionName}`);
-      
       if (!division.boundaries || !division.boundaries.coordinates || 
           !Array.isArray(division.boundaries.coordinates) || 
-          division.boundaries.coordinates.length === 0) {
-        console.log(`Division ${divisionName} has invalid boundaries`);
-        continue;
+          division.boundaries.coordinates.length === 0 ||
+          !Array.isArray(division.boundaries.coordinates[0])) {
+        continue; // Skip divisions with invalid boundary data
       }
       
-      // Extract the coordinates of the first (and usually only) polygon
       const polygon = division.boundaries.coordinates[0];
       
+      // Skip if polygon has fewer than 3 points (not a valid polygon)
       if (!Array.isArray(polygon) || polygon.length < 3) {
-        console.log(`Division ${divisionName} has invalid polygon`);
         continue;
       }
       
-      const point = [lng, lat]; // GeoJSON format: [longitude, latitude]
-      
-      // Check if the point is inside the polygon
-      if (isPointInPolygon(point, polygon)) {
-        console.log(`Found matching division: ${divisionName}`);
-        
-        // Store division info in cache (just the ID and name)
-        locationCache.set(cacheKey, {
-          _id: division._id,
-          name: division.name
+      // Check if the point is inside this division
+      if (isPointInPolygon([lng, lat], polygon)) {
+        console.log(`Found matching division: ${division.name}`);
+        // Cache division ID and name for future lookups
+        locationCache.set(cacheKey, { 
+          _id: division._id, 
+          name: division.name 
         });
-        
         return division;
       }
     }
     
-    // If we get here, try to find a division named "DIGHI ALANDI" as a fallback
-    const fallbackDivision = await Division.findOne({ name: 'DIGHI ALANDI' });
-    if (fallbackDivision) {
-      console.log('Fallback: Using DIGHI ALANDI division');
-      
-      // Store division info in cache (just the ID and name)
-      locationCache.set(cacheKey, {
-        _id: fallbackDivision._id,
-        name: fallbackDivision.name
-      });
-      
-      return fallbackDivision;
-    }
+    // If we reach here, the location is not in any specific division
+    // But it's within the PCMC bounding box
+    console.log('Location is not within any defined division boundary');
     
-    console.log('No matching division found for the location');
+    // Cache this result to avoid repeated checks
+    locationCache.set(cacheKey, { outside: true });
     return null;
   } catch (error) {
     console.error('Error finding division for location:', error);
@@ -366,7 +338,6 @@ app.get('/capture.html', (req, res) => {
 
 // Add a new endpoint to check locations before submission
 
-// Add this new API endpoint to check if a location is within jurisdiction
 // Add a simple endpoint to check locations (useful for debugging and frontend validation)
 app.get('/api/check-location', async (req, res) => {
   try {
@@ -406,6 +377,7 @@ app.get('/api/check-location', async (req, res) => {
 // Update the report endpoint
 
 // Find your existing /api/report endpoint and replace it with this
+// Update the /api/report endpoint for immediate response
 app.post('/api/report', upload.single('image'), async (req, res) => {
   try {
     console.log('----- NEW REPORT SUBMISSION -----');
@@ -418,19 +390,21 @@ app.post('/api/report', upload.single('image'), async (req, res) => {
       return res.status(400).json({ success: false, error: 'No image file found' });
     }
     
-    // Respond to user immediately with an optimistic response
+    // Respond to user immediately before any processing
     res.status(202).json({ 
       success: true, 
-      message: 'Report received and is being processed. You will be notified when complete.' 
+      message: 'Report received and being processed. You will receive a confirmation on WhatsApp shortly.' 
     });
     
-    // Process in background without awaiting the results
-    processReportInBackground(req.file, latitude, longitude, description, userId, reportType, address);
+    // Process everything in the background - completely independent of HTTP response
+    setImmediate(() => {
+      processReportInBackground(req.file, latitude, longitude, description, userId, reportType, address)
+        .catch(err => console.error('Background processing error:', err));
+    });
     
   } catch (error) {
     console.error('Error in report submission:', error);
     
-    // If we haven't already sent a response, send an error
     if (!res.headersSent) {
       res.status(500).json({ 
         success: false, 
@@ -441,21 +415,24 @@ app.post('/api/report', upload.single('image'), async (req, res) => {
 });
 
 // Add this function to your server.js
-// Find the processReportInBackground function and update it:
-// Update the processReportInBackground function to include the user's name:
+// Updated background processing function
 async function processReportInBackground(file, latitude, longitude, description, userId, reportType, address) {
   try {
     console.log(`Starting background processing for report from user ${userId}`);
     
-    // Convert file to base64
-    const imageBuffer = file.buffer;
-    const base64Image = `data:${file.mimetype};base64,${imageBuffer.toString('base64')}`;
+    // Start compressing and uploading the image right away
+    // Don't wait for division check to start this time-consuming process
+    const imagePromise = (async () => {
+      const imageBuffer = file.buffer;
+      const base64Image = `data:${file.mimetype};base64,${imageBuffer.toString('base64')}`;
+      return await uploadImageToR2(base64Image, 'traffic_buddy');
+    })();
     
-    // First check if location is in a division before uploading the image
+    // Check if location is in a division
     console.log('Checking if location is within any division...');
     const matchingDivision = await findDivisionForLocation(latitude, longitude);
     
-    // If location is not in any division, inform the user and stop processing
+    // If location is not in any division, inform the user and stop further processing
     if (!matchingDivision) {
       console.log('Location is outside PCMC jurisdiction:', { latitude, longitude });
       
@@ -466,14 +443,13 @@ async function processReportInBackground(file, latitude, longitude, description,
       return;
     }
     
+    // Wait for the image upload to complete (which started earlier)
+    const uploadedUrl = await imagePromise;
+    
     // Get user's session to retrieve their name
     const userSession = await Session.findOne({ user_id: userId });
     const userName = userSession?.user_name || 'Anonymous';
     console.log(`User name from session: ${userName}`);
-    
-    // Since the location is valid, now upload the image
-    console.log('Location is within jurisdiction. Uploading image...');
-    const uploadedUrl = await uploadImageToR2(base64Image, 'traffic_buddy');
     
     // Get the query type text based on the report type number
     const reportTypes = {
@@ -487,10 +463,10 @@ async function processReportInBackground(file, latitude, longitude, description,
     };
     const queryTypeText = reportTypes[reportType] || 'Report';
     
-    // Create query object with proper type handling and include user name
+    // Create query object with user name
     const query = new Query({
       user_id: userId,
-      user_name: userName, // Add user's name from their session
+      user_name: userName,
       query_type: queryTypeText,
       description: description || 'No description provided',
       location: {
@@ -508,27 +484,31 @@ async function processReportInBackground(file, latitude, longitude, description,
     await query.save();
     console.log(`Query saved with ID: ${query._id}`);
     
-    // Notify division officers - import this from the whatsapp utils
-    console.log(`Notifying officers for division: ${matchingDivision.name}`);
-    try {
-      const notifiedOfficers = await notifyDivisionOfficers(query, matchingDivision);
-      console.log(`Notified ${notifiedOfficers.length} division officers`);
-      
-      // Update the query with notification information
-      if (notifiedOfficers.length > 0) {
-        query.notifications = notifiedOfficers;
-        await query.save();
-      }
-    } catch (notifyError) {
-      console.error('Error notifying division officers:', notifyError);
-      // Continue execution even if notification fails
-    }
-    
-    // Send confirmation to user
-    await sendWhatsAppMessage(
+    // Send confirmation to user immediately after saving the query
+    const confirmationPromise = sendWhatsAppMessage(
       userId,
       `Thank you! Your ${queryTypeText} report has been submitted successfully and assigned to the ${matchingDivision.name} division. You will be notified when there are updates.`
     );
+    
+    // Notify division officers in parallel
+    const notificationPromise = (async () => {
+      try {
+        console.log(`Notifying officers for division: ${matchingDivision.name}`);
+        const notifiedOfficers = await notifyDivisionOfficers(query, matchingDivision);
+        console.log(`Notified ${notifiedOfficers.length} division officers`);
+        
+        // Update the query with notification information
+        if (notifiedOfficers.length > 0) {
+          query.notifications = notifiedOfficers;
+          await query.save();
+        }
+      } catch (notifyError) {
+        console.error('Error notifying division officers:', notifyError);
+      }
+    })();
+    
+    // Wait for both operations to complete
+    await Promise.all([confirmationPromise, notificationPromise]);
     
     console.log('Background processing completed successfully');
   } catch (error) {
