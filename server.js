@@ -11,6 +11,7 @@ const locationCache = new NodeCache({
   useClones: false // Don't clone objects for better performance
 }); 
 
+
 // Load environment variables
 dotenv.config();
 
@@ -23,6 +24,7 @@ const { getReportInstructionMessage } = require('./utils/deeplink');
 const { getTwilioClient, sendWhatsAppMessage, notifyDivisionOfficers } = require('./utils/whatsapp');
 const { getUserSession, updateUserSession } = require('./utils/sessionManager');
 
+
 // Import database connection
 const connectDB = require('./config/database');
 
@@ -32,12 +34,13 @@ const Session = require('./models/Session');
 const { Division } = require('./models/Division');
 const TeamApplication = require('./models/TeamApplication');
 
+
 // Import routes
 const uploadRoutes = require('./routes/upload');
 const queryRoutes = require('./routes/queryRoutes');
 const dashboardRoutes = require('./routes/dashboardRoutes');
 const authRoutes = require('./routes/authRoutes');
-
+const otpRoutes = require('./routes/otpRoutes');
 const userRoutes = require('./routes/userRoutes');
 const reportRoutes = require('./routes/reportRoutes');
 const teamApplicationRoutes = require('./routes/teamApplicationRoutes');
@@ -241,7 +244,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/queries', queryRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/uploads', uploadRoutes);
-
+app.use('/api/otp', otpRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api', reportRoutes);
 app.use('/api/applications', teamApplicationRoutes);
