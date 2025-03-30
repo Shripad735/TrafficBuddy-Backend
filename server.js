@@ -231,7 +231,7 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // Enable CORS
 app.use(cors({
-  origin: ['http://localhost:5173', 'http://localhost:3000', 'https://yourdomain.com'],
+  origin: ['http://localhost:5173', 'http://localhost:3000', 'https://trafficbuddy.yashraj221b.me'],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
@@ -1190,7 +1190,7 @@ app.post('/api/join-team', upload.single('aadharDocument'), async (req, res) => 
     // Create new application
     const application = new TeamApplication({
       user_id: userId,
-      user_name: userSession.user_name || 'Unknown',
+      user_name: userSession.user_name || fullName || 'Unknown',
       full_name: fullName,
       division,
       motivation,

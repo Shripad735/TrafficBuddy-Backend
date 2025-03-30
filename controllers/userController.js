@@ -6,11 +6,14 @@ const { Division } = require('../models/Division');
 exports.getCurrentOfficers = async (req, res) => {
   try {
     const divisions = await Division.find();
-    const officers = divisions.map(div => ({
-      divisionId: div._id,
-      divisionName: div.name,
-      officer: div.officers.length ? div.officers[div.officers.length - 1] : null
-    }));
+    const officers = divisions
+      .map(div => ({
+        divisionId: div._id,
+        divisionName: div.name,
+        officer: div.officers.length ? div.officers[div.officers.length - 1] : null
+      }))
+      .filter(div => div.officer !== null); // Exclude divisions with no officer
+
     res.status(200).json({ success: true, officers });
   } catch (err) {
     console.error(err);
