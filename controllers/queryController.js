@@ -72,7 +72,6 @@ exports.getAllQueries = async (req, res) => {
     const totalQueries = await Query.countDocuments(filter);
     
     // Execute query with pagination
-    console.log("Aggregate:", aggregate);
     if(aggregate === 'false' || aggregate === false){
       const queries = await Query.find(filter)
       .populate('division', 'name code')
@@ -119,7 +118,6 @@ exports.getAllQueries = async (req, res) => {
       const queries = all_queries.filter((query, index, self) =>
         index === self.findIndex((q) => q._id.toString() === query._id.toString())
       );
-      console.log("AGGR: ",totalQueries, queries.length);
       return res.status(200).json({
         success: true,
         count: queries.length,
