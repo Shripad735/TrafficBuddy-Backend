@@ -16,10 +16,10 @@ const teamApplicationSchema = new mongoose.Schema({
     division: {
         type: String,
         enum: [
-            'chakan', 'nigdi', 'dighi-alandi', 'mahalunge',
-            'chinchwad', 'pimpri', 'bavdhan', 'wakad',
-            'talwade', 'talegaon', 'sanghvi', 'bhosari',
-            'dehuroad', 'hinjewadi'
+            'CHAKAN', 'NIGDI', 'DIGHI ALANDI', 'MAHALUNGE',
+            'CHINCHWAD', 'PIMPRI', 'BAVDHAN', 'WAKAD',
+            'TALWADE', 'TALEGAON', 'SANGHVI', 'BHOSARI',
+            'DEHUROAD', 'HINJEWADI'
         ],
         required: true
     },

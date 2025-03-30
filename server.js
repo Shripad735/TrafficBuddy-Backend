@@ -234,7 +234,7 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // Enable CORS
 app.use(cors({
-  origin: ['http://localhost:5173', 'http://localhost:3000', 'https://yourdomain.com'],
+  origin: ['http://localhost:5173', 'http://localhost:3000', 'https://trafficbuddy.yashraj221b.me'],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
@@ -433,7 +433,7 @@ async function processReportInBackground(file, latitude, longitude, description,
     
     // Check if location is in a division
     console.log('Checking if location is within any division...');
-    const matchingDivision = await findDivisionForLocation(latitude, longitude);
+    let matchingDivision = await findDivisionForLocation(latitude, longitude);
     
     // If location is not in any division, inform the user and stop further processing
     if (!matchingDivision) {
@@ -466,6 +466,18 @@ async function processReportInBackground(file, latitude, longitude, description,
     };
     const queryTypeText = reportTypes[reportType] || 'Report';
     
+    if(queryTypeText === 'Road Damage') {
+      // If the report type is Road Damage, assign it to the MAIN division
+      console.log('Assigning Road Damage report to MAIN division');
+      const mainDivision = await Division.findOne({ name: 'MAIN' });
+      if (mainDivision) {
+        matchingDivision = mainDivision;
+      } else {
+        console.error('MAIN division not found in the database');
+        return;
+      }
+    }
+
     // Create query object with user name
     const query = new Query({
       user_id: userId,
@@ -482,6 +494,8 @@ async function processReportInBackground(file, latitude, longitude, description,
       divisionName: matchingDivision.name,
       status: 'Pending'
     });
+
+    console.log("Query object created:", query);
     
     // Save the query
     await query.save();
@@ -750,6 +764,9 @@ app.post('/webhook', express.urlencoded({ extended: true }), async (req, res) =>
         return res.status(200).send('<?xml version="1.0" encoding="UTF-8"?><Response></Response>');
       }
 
+      if (reportType === 'Road Damage') {
+        matchingDivision = await Division.findOne({ name: 'MAIN' });
+      }
       // If we reach here, a division was found
       // Create a new report with user's name
       const newQuery = new Query({
@@ -1193,7 +1210,7 @@ app.post('/api/join-team', upload.single('aadharDocument'), async (req, res) => 
     // Create new application
     const application = new TeamApplication({
       user_id: userId,
-      user_name: userSession.user_name || 'Unknown',
+      user_name: userSession.user_name || fullName || 'Unknown',
       full_name: fullName,
       division,
       motivation,

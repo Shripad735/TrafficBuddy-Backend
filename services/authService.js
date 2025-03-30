@@ -36,12 +36,15 @@ const authenticateDivisionUser = async (username, password) => {
       };
     }
 
+    // Determine role based on division name
+    const role = division.name === 'MAIN' ? 'main_admin' : 'division_admin';
+
     // Create token payload
     const payload = {
       divisionId: division._id,
       divisionCode: division.code,
       divisionName: division.name,
-      role: 'division_admin'
+      role: role
     };
 
     // Sign token
@@ -54,7 +57,8 @@ const authenticateDivisionUser = async (username, password) => {
         id: division._id,
         name: division.name,
         code: division.code
-      }
+      },
+      role: role
     };
   } catch (error) {
     console.error('Authentication error:', error);
@@ -99,64 +103,6 @@ const authenticateMainAdmin = (username, password) => {
   };
 };
 
-// Function to authenticate division user or main admin => DO NOT USE - UNDER DEVELOPMENT
-const authenticateAnyUser = async (username, password) => {
-  const mainAdminUsername = process.env.MAIN_ADMIN_USERNAME || 'Admin';
-  const mainAdminPassword = process.env.MAIN_ADMIN_PASSWORD || 'trafficBuddy@123';
-
-  if (username === mainAdminUsername && password === mainAdminPassword) {
-    const payload = {
-      role: 'main_admin'
-    };
-    const token = jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRY });
-
-    return {
-      success: true,
-      token: token,
-      role: 'main_admin'
-    };
-  }
-  else{
-    const division = await Division.findOne({
-      'dashboard_credentials.username': username
-    });
-
-    if (!division) {
-      return {
-        success: false,
-        message: 'Invalid credentials'
-      };
-    }
-
-    const isMatch = division.dashboard_credentials.password === password;
-    
-    if (!isMatch) {
-      return {
-        success: false,
-        message: 'Invalid credentials'
-      };
-    }
-
-    const payload = {
-      divisionId: division._id,
-      divisionCode: division.code,
-      divisionName: division.name,
-      role: 'division_admin'
-    };
-
-    const token = jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRY });
-
-    return {
-      success: true,
-      token: token,
-      division: {
-        divisionId: division._id,
-        name: division.name,
-        code: division.code
-      }
-    };
-  }
-}
   
 /**
  * Verify JWT token

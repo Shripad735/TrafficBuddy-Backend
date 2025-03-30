@@ -1,5 +1,6 @@
 const Query = require('../models/Query');
-const Division = require('../models/Division');
+const { Division } = require('../models/Division');
+const TeamApplication = require('../models/TeamApplication');
 const { sendWhatsAppMessage } = require('../utils/whatsapp');
 const { getText } = require('../utils/language');
 const Session = require('../models/Session');
@@ -71,7 +72,6 @@ exports.getAllQueries = async (req, res) => {
     const totalQueries = await Query.countDocuments(filter);
     
     // Execute query with pagination
-    console.log("Aggregate:", aggregate);
     if(aggregate === 'false' || aggregate === false){
       const queries = await Query.find(filter)
       .populate('division', 'name code')
@@ -118,7 +118,6 @@ exports.getAllQueries = async (req, res) => {
       const queries = all_queries.filter((query, index, self) =>
         index === self.findIndex((q) => q._id.toString() === query._id.toString())
       );
-      console.log("AGGR: ",totalQueries, queries.length);
       return res.status(200).json({
         success: true,
         count: queries.length,
@@ -475,6 +474,97 @@ exports.broadcastMessageToVolunteers = async (req, res) => {
   }
 };
 
+
+exports.broadcastMessageByOptions = async (req, res) => {
+  try {
+    const { message, users = false, volunteers = false, divisions } = req.body;
+
+    console.log('Broadcasting message with options:', { users, volunteers, divisions });
+
+    if (!message || message.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Message is required'
+      });
+    }
+
+    const sentUsers = new Set(); // To track users who have already received the message
+
+    if (users) {
+      const allUsers = await Query.distinct('user_id');
+      for (const user of allUsers) {
+        if (!sentUsers.has(user)) {
+          try {
+            console.log(`Sending message to user ${user}`);
+            const messageSent = await sendWhatsAppMessage(user, message);
+            console.log(`WhatsApp message sent successfully to user ${user}:`, messageSent.sid);
+            sentUsers.add(user); // Mark user as messaged
+          } catch (error) {
+            console.error('Error sending WhatsApp message:', error);
+          }
+        }
+      }
+    }
+
+    // Send message to all volunteers (if true) which are stored in teamApplications
+    if (volunteers) {
+      const allVolunteers = await TeamApplication.find({ status: 'Approved' });
+      for (const volunteer of allVolunteers) {
+        if (!sentUsers.has(volunteer.user_id)) {
+          try {
+            const messageSent = await sendWhatsAppMessage(volunteer.user_id, message);
+            console.log(`WhatsApp message sent successfully to volunteer ${volunteer.user_id}:`, messageSent.sid);
+            sentUsers.add(volunteer.user_id); // Mark volunteer as messaged
+          } catch (error) {
+            console.error('Error sending WhatsApp message:', error);
+          }
+        }
+      }
+    }
+
+    // Send message to all division officers from the specified divisions
+    if (divisions && divisions.length > 0) {
+      const allDivisions = await Division.find({ name: { $in: divisions } });
+      console.log('Filtered Divisions:', allDivisions);
+      for (const division of allDivisions) {
+        try {
+          if (division.officers && division.officers.length > 0) {
+            for (const officer of division.officers) {
+              if (!officer.isActive) {
+                continue;
+              }
+              if (!sentUsers.has(officer.phone)) {
+                const messageSentPri = await sendWhatsAppMessage(officer.phone, message);
+                console.log(`WhatsApp message sent successfully to officer ${officer.name} (primary):`, messageSentPri.sid);
+                sentUsers.add(officer.phone); // Mark officer's primary phone as messaged
+              }
+              if (officer.alternate_phone && !sentUsers.has(officer.alternate_phone)) {
+                const messageSentSec = await sendWhatsAppMessage(officer.alternate_phone, message);
+                console.log(`WhatsApp message sent successfully to officer ${officer.name} (secondary):`, messageSentSec.sid);
+                sentUsers.add(officer.alternate_phone); // Mark officer's alternate phone as messaged
+              }
+            }
+          }
+        } catch (error) {
+          console.error('Error sending WhatsApp message:', error);
+        }
+      }
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Message broadcast successfully to all specified users, volunteers, and divisions'
+    });
+
+  } catch (error) {
+    console.error('Error broadcasting message:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
+  }
+};
 
 exports.getQueriesByDivision = async (req, res) => {
   try {

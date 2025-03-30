@@ -1,6 +1,6 @@
 const Query = require("../models/Query");
 const Session = require("../models/Session");
-const Division = require("../models/Division");
+const { Division } = require("../models/Division");
 const mongoose = require("mongoose");
 
 // Get dashboard summary statistics

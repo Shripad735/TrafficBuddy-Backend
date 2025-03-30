@@ -43,6 +43,8 @@ router.post('/:id/notify-department', queryController.notifyDepartmentByEmail);
 router.post('/broadcast', mainAdminOnly, queryController.broadcastMessage);
 router.post('/broadcasttoVolunteers', mainAdminOnly, queryController.broadcastMessageToVolunteers);
 
+router.post('/broadcastMessageByOptions', queryController.broadcastMessageByOptions);
+
 // Test WhatsApp messaging (restrict to main admin)
 router.post('/test-notification', mainAdminOnly, async (req, res) => {
     try {
