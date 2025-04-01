@@ -36,15 +36,12 @@ const authenticateDivisionUser = async (username, password) => {
       };
     }
 
-    // Determine role based on division name
-    const role = division.name === 'MAIN' ? 'main_admin' : 'division_admin';
-
     // Create token payload
     const payload = {
       divisionId: division._id,
       divisionCode: division.code,
       divisionName: division.name,
-      role: role
+      role: 'division_admin'
     };
 
     // Sign token
@@ -57,8 +54,7 @@ const authenticateDivisionUser = async (username, password) => {
         id: division._id,
         name: division.name,
         code: division.code
-      },
-      role: role
+      }
     };
   } catch (error) {
     console.error('Authentication error:', error);
