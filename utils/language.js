@@ -167,8 +167,8 @@ LOCATION_OUTSIDE_JURISDICTION: {
   },
   
   'STATUS_RESOLVED': {
-    'en': '✅ Good news! Your {0} report has been resolved.\n\nResolution details: {1}\n\nThank you for making our roads safer!',
-    'mr': '✅ चांगली बातमी! तुमचा {0} अहवाल निकाली काढला गेला आहे.\n\nनिराकरण तपशील: {1}\n\nआमचे रस्ते सुरक्षित बनवण्यासाठी धन्यवाद!'
+    'en': '✅ Your {0} report has been resolved.\n\nResolution details: {1}\n\nThank you for making our roads safer!',
+    'mr': '✅ तुमचा {0} अहवाल निकाली काढला गेला आहे.\n\nनिराकरण तपशील: {1}\n\nआमचे रस्ते सुरक्षित बनवण्यासाठी धन्यवाद!'
   },
   
   'STATUS_REJECTED': {
