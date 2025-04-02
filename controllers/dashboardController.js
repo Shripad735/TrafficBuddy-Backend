@@ -11,6 +11,7 @@ exports.getDashboardSummary = async (req, res) => {
     if (req.user && req.user.role === "division_admin" && req.user.divisionId) {
       divisionFilter = {
         division: new mongoose.Types.ObjectId(req.user.divisionId),
+        query_type: { $ne: "Road Damage" },
       };
     } else if (req.query.division) {
       // Allow filtering by division for main admin
@@ -147,6 +148,7 @@ exports.getRecentActivity = async (req, res) => {
     if (req.user && req.user.role === "division_admin" && req.user.divisionId) {
       divisionFilter = {
         division: new mongoose.Types.ObjectId(req.user.divisionId),
+        query_type: { $ne: "Road Damage" },
       };
     } else if (req.query.division) {
       // Allow filtering by division for main admin
@@ -192,6 +194,7 @@ exports.getMapData = async (req, res) => {
     if (req.user && req.user.role === "division_admin" && req.user.divisionId) {
       divisionFilter = {
         division: new mongoose.Types.ObjectId(req.user.divisionId),
+        query_type: { $ne: "Road Damage" },
       };
     } else if (req.query.division) {
       // Allow filtering by division for main admin

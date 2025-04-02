@@ -53,6 +53,8 @@ exports.getAllQueries = async (req, res) => {
     if (req.user && req.user.role === 'division_admin' && req.user.divisionId) {
       // Override any division filter - division admins can only see their own division's data
       filter.division = new mongoose.Types.ObjectId(req.user.divisionId);
+      // Exclude 'Road Damage' reports for division_admin
+      filter.query_type = { $ne: 'Road Damage' };
     }
     
     // Search functionality
@@ -331,7 +333,6 @@ exports.deleteQuery = async (req, res) => {
   }
 };
 
-
 // Send query information to department via email
 exports.notifyDepartmentByEmail = async (req, res) => {
   try {
@@ -588,6 +589,7 @@ exports.getQueriesByDivision = async (req, res) => {
     if (req.user && req.user.role === 'division_admin' && req.user.divisionId) {
       // Override any division filter - division admins can only see their own division's data
       filter.division = new mongoose.Types.ObjectId(req.user.divisionId);
+      filter.query_type = { $ne: 'Road Damage' };
     }
     
     console.log(`Querying DB with filter:`, filter);
@@ -665,6 +667,7 @@ exports.getqueriesbytimefilter = async (req, res) => {
     if (req.user && req.user.role === 'division_admin' && req.user.divisionId) {
       // Override any division filter - division admins can only see their own division's data
       filter.division = new mongoose.Types.ObjectId(req.user.divisionId);
+      filter.query_type = { $ne: 'Road Damage' };
     }
 
     console.log(`Querying DB with filter:`, filter);
@@ -722,6 +725,8 @@ exports.getStatsByDivision = async (req, res) => {
     if (req.user && req.user.role === 'division_admin' && req.user.divisionId) {
       // Override any division filter - division admins can only see their own division's data
       filter.division = new mongoose.Types.ObjectId(req.user.divisionId);
+      // Exclude 'Road Damage' reports for division_admin
+      filter.query_type = { $ne: 'Road Damage' };
     }
     
     // Get counts for each status
@@ -813,6 +818,8 @@ exports.getQueryStatistics = async (req, res) => {
     if (req.user && req.user.role === 'division_admin' && req.user.divisionId) {
       // Override any division filter - division admins can only see their own division's data
       filter.division = new mongoose.Types.ObjectId(req.user.divisionId);
+      // Exclude 'Road Damage' reports for division_admin
+      filter.query_type = { $ne: 'Road Damage' };
     }
 
     // Get counts for each status

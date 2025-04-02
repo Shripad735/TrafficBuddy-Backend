@@ -8,7 +8,7 @@ const { authMiddleware, mainAdminOnly } = require('../services/authService');
 // router.use(authMiddleware);
 
 // Get all queries with filtering and pagination
-router.get('/', queryController.getAllQueries);
+router.get('/', authMiddleware, queryController.getAllQueries);
 
 // get all queries for a specific division
 router.get('/division/:division', queryController.getQueriesByDivision);
