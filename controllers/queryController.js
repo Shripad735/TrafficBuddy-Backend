@@ -54,8 +54,8 @@ exports.getAllQueries = async (req, res) => {
       // Override any division filter - division admins can only see their own division's data
       filter.division = new mongoose.Types.ObjectId(req.user.divisionId);
       // Exclude 'Road Damage' reports for division_admin
-      if (filter.query_type !== "Road Damage") {
-        filter.query_type = query_type || { $ne: "Road Damage" };
+      if (filter.query_type !== "Road Damage" && filter.query_type !== "Suggestion") {
+        filter.query_type = query_type || { $nin: ["Road Damage", "Suggestion"] };
       } else {
         filter.query_type = "UNDEFINED";
       }
@@ -723,7 +723,7 @@ exports.getQueriesByDivision = async (req, res) => {
     if (req.user && req.user.role === "division_admin" && req.user.divisionId) {
       // Override any division filter - division admins can only see their own division's data
       filter.division = new mongoose.Types.ObjectId(req.user.divisionId);
-      filter.query_type = { $ne: "Road Damage" };
+      filter.query_type = { $nin: ["Road Damage", "Suggestion"] };
     }
 
     const queries = await Query.find(filter).sort({ timestamp: -1 });
@@ -798,7 +798,7 @@ exports.getqueriesbytimefilter = async (req, res) => {
     if (req.user && req.user.role === "division_admin" && req.user.divisionId) {
       // Override any division filter - division admins can only see their own division's data
       filter.division = new mongoose.Types.ObjectId(req.user.divisionId);
-      filter.query_type = { $ne: "Road Damage" };
+      filter.query_type = { $nin: ["Road Damage", "Suggestion"] };
     }
 
     const queries = await Query.find(filter).sort({ timestamp: -1 });
@@ -855,7 +855,7 @@ exports.getStatsByDivision = async (req, res) => {
       // Override any division filter - division admins can only see their own division's data
       filter.division = new mongoose.Types.ObjectId(req.user.divisionId);
       // Exclude 'Road Damage' reports for division_admin
-      filter.query_type = { $ne: "Road Damage" };
+      filter.query_type = { $nin: ["Road Damage", "Suggestion"] };
     }
 
     // Get counts for each status
@@ -901,10 +901,10 @@ exports.getStatsByDivision = async (req, res) => {
       ...filter,
       query_type: "Traffic Signal Issue",
     });
-    const suggestion = await Query.countDocuments({
-      ...filter,
-      query_type: "Suggestion",
-    });
+    const suggestion = 
+      req.user && req.user.role === "main_admin"
+      ? await Query.countDocuments({...filter, query_type: "Suggestion" })
+      : 0;
     const joinRequest = await Query.countDocuments({
       ...filter,
       query_type: "Join Request",
@@ -989,7 +989,7 @@ exports.getQueryStatistics = async (req, res) => {
       // Override any division filter - division admins can only see their own division's data
       filter.division = new mongoose.Types.ObjectId(req.user.divisionId);
       // Exclude 'Road Damage' reports for division_admin
-      filter.query_type = { $ne: "Road Damage" };
+      filter.query_type = { $nin: ["Road Damage", "Suggestion"] };
     }
 
     // Get counts for each status
