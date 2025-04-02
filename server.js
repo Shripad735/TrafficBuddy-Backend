@@ -33,7 +33,8 @@ const Query = require('./models/Query');
 const Session = require('./models/Session');
 const { Division } = require('./models/Division');
 const TeamApplication = require('./models/TeamApplication');
-
+const Departments = require('./models/Departments');
+const EmailRecord = require('./models/Departments');
 
 // Import routes
 const uploadRoutes = require('./routes/upload');
@@ -333,6 +334,23 @@ function getReportTypeText(reportType) {
   
   return reportTypes[reportType] || 'Report';
 }
+
+// Return department details
+app.get('/api/departments', async (req, res) => {
+  try {
+    const departments = await Departments.find();
+    return res.status(200).json({
+      success: true,
+      departments: departments
+    });
+  } catch (error) {
+    console.error('Error fetching departments:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error fetching departments'
+    });
+  }
+});
 
 // Serve the capture.html file
 app.get('/capture.html', (req, res) => {

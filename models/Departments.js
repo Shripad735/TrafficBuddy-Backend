@@ -1,9 +1,8 @@
 const mongoose = require('mongoose');
 
-const DepartmentSchema = new mongoose.Schema({
+const DepartmentsSchema = new mongoose.Schema({
     name: { type: String, required: true },
-    email: { type: String, required: true },
-    alternate_email: { type: String }
+    emails: { type: String, required: true }
 });
 
-module.exports = mongoose.model('Department', DepartmentSchema);
+module.exports = mongoose.model('Departments', DepartmentsSchema);

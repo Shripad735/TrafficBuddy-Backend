@@ -3,8 +3,8 @@ const router = express.Router();
 const userController = require('../controllers/userController');
 const { authMiddleware, mainAdminOnly } = require('../services/authService');
 
-// router.use(authMiddleware);
-// router.use(mainAdminOnly);
+router.use(authMiddleware);
+router.use(mainAdminOnly);
 
 // GET current officer of all divisions
 router.get('/current-officer', userController.getCurrentOfficers);
