@@ -32,7 +32,7 @@ exports.login = async (req, res) => {
       return res.status(200).json({
         success: true,
         token: divisionResult.token,
-        role: divisionResult.role,
+        role: 'division_admin',
         division: divisionResult.division,
         message: 'Division admin login successful'
       });

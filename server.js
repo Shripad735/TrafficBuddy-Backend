@@ -33,7 +33,8 @@ const Query = require('./models/Query');
 const Session = require('./models/Session');
 const { Division } = require('./models/Division');
 const TeamApplication = require('./models/TeamApplication');
-
+const Departments = require('./models/Departments');
+const EmailRecord = require('./models/Departments');
 
 // Import routes
 const uploadRoutes = require('./routes/upload');
@@ -334,6 +335,23 @@ function getReportTypeText(reportType) {
   return reportTypes[reportType] || 'Report';
 }
 
+// Return department details
+app.get('/api/departments', async (req, res) => {
+  try {
+    const departments = await Departments.find();
+    return res.status(200).json({
+      success: true,
+      departments: departments
+    });
+  } catch (error) {
+    console.error('Error fetching departments:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error fetching departments'
+    });
+  }
+});
+
 // Serve the capture.html file
 app.get('/capture.html', (req, res) => {
   res.sendFile(path.join(__dirname, 'capture.html'));
@@ -433,7 +451,7 @@ async function processReportInBackground(file, latitude, longitude, description,
     
     // Check if location is in a division
     console.log('Checking if location is within any division...');
-    let matchingDivision = await findDivisionForLocation(latitude, longitude);
+    const matchingDivision = await findDivisionForLocation(latitude, longitude);
     
     // If location is not in any division, inform the user and stop further processing
     if (!matchingDivision) {
@@ -465,18 +483,6 @@ async function processReportInBackground(file, latitude, longitude, description,
       '7': 'Suggestion'
     };
     const queryTypeText = reportTypes[reportType] || 'Report';
-    
-    if(queryTypeText === 'Road Damage') {
-      // If the report type is Road Damage, assign it to the MAIN division
-      console.log('Assigning Road Damage report to MAIN division');
-      const mainDivision = await Division.findOne({ name: 'MAIN' });
-      if (mainDivision) {
-        matchingDivision = mainDivision;
-      } else {
-        console.error('MAIN division not found in the database');
-        return;
-      }
-    }
 
     // Create query object with user name
     const query = new Query({
@@ -763,10 +769,7 @@ app.post('/webhook', express.urlencoded({ extended: true }), async (req, res) =>
 
         return res.status(200).send('<?xml version="1.0" encoding="UTF-8"?><Response></Response>');
       }
-
-      if (reportType === 'Road Damage') {
-        matchingDivision = await Division.findOne({ name: 'MAIN' });
-      }
+      
       // If we reach here, a division was found
       // Create a new report with user's name
       const newQuery = new Query({
