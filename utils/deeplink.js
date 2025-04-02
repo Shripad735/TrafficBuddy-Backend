@@ -51,9 +51,16 @@ Play Store: ${PLAY_STORE_LINK}`;
    * @returns {string} The capture URL with query parameters
    */
   getCaptureUrl: (userId, reportType) => {
-    const serverUrl = module.exports.getServerUrl();
-    return `${serverUrl}/capture.html?userId=${encodeURIComponent(userId)}&reportType=${reportType}`;
-  },
+    const encodedUserId = encodeURIComponent(userId);
+  
+  // For suggestions, use the suggestion-capture.html page
+  if (reportType === '7') {
+    return `${process.env.SERVER_URL}/suggestion-capture.html?userId=${encodedUserId}&reportType=${reportType}`;
+  }
+  
+  // For all other report types, use the regular capture page
+  return `${process.env.SERVER_URL}/capture.html?userId=${encodedUserId}&reportType=${reportType}`;
+ },
 
   /**
    * Get optimized instruction message with clickable capture link
@@ -70,7 +77,8 @@ Play Store: ${PLAY_STORE_LINK}`;
 ${captureUrl}
 👆👆👆👆👆👆👆👆
 
-वरील लिंकवर टॅप करून, आपले स्थान आणि फोटो सादर करा.`;
+वरील लिंकवर टॅप करून, आपले स्थान आणि फोटो सादर करा.
+कृपया यशस्वी अहवाल सादर करण्यासाठी GPS स्थान प्रवेश परवानगी द्या.`;
     }
     
     return `📸 *Click the link below to submit your report:*
@@ -80,7 +88,8 @@ ${captureUrl}
 ${captureUrl}
 👆👆👆👆👆👆👆👆
 
-Tap the link above to submit your location and photo.`;
+Tap the link above to submit your location and photo.
+Please make sure to allow location access for Successful reporting.`;
   },
   
   /**

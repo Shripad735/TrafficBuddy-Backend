@@ -133,6 +133,21 @@ LOCATION_OUTSIDE_JURISDICTION: {
   'en': 'Hello {0}, Your application to join Traffic Buddy is currently under review. We\'ll notify you once a decision has been made.\n\nNotes: {1}',
   'mr': 'नमस्कार {0}, ट्रॅफिक बडी टीममध्ये सामील होण्यासाठी आपला अर्ज सध्या तपासला जात आहे. निर्णय झाल्यानंतर आम्ही आपल्याला सूचित करू.\n\nनोट्स: {1}'
 },
+'SUGGESTION_PROMPT': {
+  'en': 'Please share your suggestion or feedback. We value your input to improve traffic management in PCMC.',
+  'mr': 'कृपया आपली सूचना किंवा अभिप्राय शेअर करा. आम्ही पीसीएमसी मध्ये वाहतूक व्यवस्थापन सुधारण्यासाठी आपल्या इनपुटचा आदर करतो.'
+},
+
+'SUGGESTION_RESPONSE': {
+  'en': 'Thank you for your valuable suggestion! Your feedback helps us improve traffic management in PCMC.\n\nType "menu" to return to the main menu.',
+  'mr': 'आपल्या मौल्यवान सूचनेबद्दल धन्यवाद! आपला अभिप्राय आम्हाला पीसीएमसी मध्ये वाहतूक व्यवस्थापन सुधारण्यात मदत करतो.\n\nमुख्य मेनूकडे परत जाण्यासाठी "menu" टाइप करा.'
+},
+// Add this to your translations object
+'LOCATION_MISSING_HINT': {
+  'en': 'Please provide your location to complete this report. You can use WhatsApp\'s location sharing feature.',
+  'mr': 'हा अहवाल पूर्ण करण्यासाठी कृपया आपले स्थान प्रदान करा. आपण WhatsApp ची स्थान शेअरिंग वैशिष्ट्य वापरू शकता.'
+},
+
     
     // Language selection prompt
     'LANGUAGE_PROMPT': {
@@ -167,8 +182,8 @@ LOCATION_OUTSIDE_JURISDICTION: {
   },
   
   'STATUS_RESOLVED': {
-    'en': '✅ Your {0} report has been resolved.\n\nResolution details: {1}\n\nThank you for making our roads safer!',
-    'mr': '✅ तुमचा {0} अहवाल निकाली काढला गेला आहे.\n\nनिराकरण तपशील: {1}\n\nआमचे रस्ते सुरक्षित बनवण्यासाठी धन्यवाद!'
+    'en': '✅ Your {0} report has been resolved.\n\nResolution details: {1}\n\nThank you for making our roads safer!  Regards : Traffic Buddy , PC-City',
+    'mr': '✅ तुमचा {0} अहवाल निकाली काढला गेला आहे.\n\nनिराकरण तपशील: {1}\n\nआमचे रस्ते सुरक्षित बनवण्यासाठी धन्यवाद! \nसादरकर्ता: ट्रॅफिक बडी',
   },
   
   'STATUS_REJECTED': {
@@ -193,27 +208,36 @@ LOCATION_OUTSIDE_JURISDICTION: {
   }
   
   // Get translated text based on the key and language
-  function getText(key, language = 'en', ...params) {
-    const translationEntry = translations[key];
-    if (!translationEntry) return `[Missing translation: ${key}]`;
-    
-    const translation = translationEntry[language];
-    if (!translation) return translationEntry['en'] || `[Missing translation: ${key}.${language}]`;
-    
-    if (typeof translation === 'function') {
-      return translation(...params);
+  // Replace your current getText function with this one
+function getText(key, language = 'en', ...params) {
+  const translationEntry = translations[key];
+  if (!translationEntry) {
+    console.log(`Warning: Missing translation key: ${key}`);
+    // Return main menu as fallback instead of showing technical error
+    if (key === 'LOCATION_MISSING_HINT') {
+      // Special case for the problematic key
+      return "Please send 'menu' to return to the main menu.";
     }
-    
-    // Handle string templates with {0}, {1}, etc. placeholders
-    let result = translation;
-    if (params && params.length > 0) {
-      params.forEach((param, index) => {
-        result = result.replace(new RegExp(`\\{${index}\\}`, 'g'), param);
-      });
-    }
-    
-    return result;
+    return getMainMenu(language);
   }
+  
+  const translation = translationEntry[language];
+  if (!translation) return translationEntry['en'] || `[Missing language: ${key}.${language}]`;
+  
+  if (typeof translation === 'function') {
+    return translation(...params);
+  }
+  
+  // Handle string templates with {0}, {1}, etc. placeholders
+  let result = translation;
+  if (params && params.length > 0) {
+    params.forEach((param, index) => {
+      result = result.replace(new RegExp(`\\{${index}\\}`, 'g'), param);
+    });
+  }
+  
+  return result;
+}
   
   // Get language selection prompt in a specific language
   function getLanguagePrompt(language = 'en') {
