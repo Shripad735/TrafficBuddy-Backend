@@ -72,7 +72,7 @@ const translations = {
 REPORT_CONFIRMATION: {
   en: "Thank you! Your *{0}* report has been submitted successfully and assigned to the *{1}* division. You will be notified when there are updates.",
   hi: "धन्यवाद! आपकी *{0}* रिपोर्ट सफलतापूर्वक जमा की गई है और *{1}* डिवीजन को सौंपी गई है। अपडेट होने पर आपको सूचित किया जाएगा।",
-  mr: "धन्यवाद! आपला *{0}* अहवाल यशस्वीरित्या सबमिट केला आहे आणि *{1}* विभागाला नियुक्त केला आहे. अपडेट झाल्यावर आपल्याला सूचित केले जाईल."
+  mr: "धन्यवाद! आपला *{0}* अहवाल यशस्वीरित्या सबमिट केला आहे आणि *{1}* विभागाला नियुक्त केला आहे. अपडेट झाल्यावर आपल्याला सूचित केले जाईल. अधिक तक्रारी असल्यास दुसरा संदेश पाठवा."
 },
 REPORT_ERROR: {
   en: "We're sorry, but there was an error processing your report. Please try again later.",

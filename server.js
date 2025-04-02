@@ -510,7 +510,7 @@ async function processReportInBackground(file, latitude, longitude, description,
     // Send confirmation to user immediately after saving the query
     const confirmationPromise = sendWhatsAppMessage(
       userId,
-      `Thank you! Your ${queryTypeText} report has been submitted successfully and assigned to the ${matchingDivision.name} division. You will be notified when there are updates.`
+      `Thank you! Your ${queryTypeText} report has been submitted successfully and assigned to the ${matchingDivision.name} division. You will be notified when there are updates. Feel free to send another message in case of more reports.`
     );
     
     // Notify division officers in parallel
@@ -610,12 +610,6 @@ app.post('/webhook', express.urlencoded({ extended: true }), async (req, res) =>
       newLastOption = null;
       console.log('User session reset to language selection');
     }
-    // Special command to return to menu from any state
-    else if (userMessage && userMessage.toLowerCase() === 'menu') {
-      responseMessage = getMainMenu(userLanguage);
-      newState = 'MENU';
-      newLastOption = null;
-    }
     // Handle language selection state
     else if (currentState === 'LANGUAGE_SELECT') {
       if (userMessage === '1') {
@@ -645,6 +639,12 @@ app.post('/webhook', express.urlencoded({ extended: true }), async (req, res) =>
       // Then show the main menu
       responseMessage += '\n\n' + getMainMenu(userLanguage);
       newState = 'MENU';
+    }
+    // Special command to return to menu from any state
+    else if (userMessage && userMessage.toLowerCase() === 'menu') {
+      responseMessage = getMainMenu(userLanguage);
+      newState = 'MENU';
+      newLastOption = null;
     }
     // Handle menu state
     else if (currentState === 'MENU') {
