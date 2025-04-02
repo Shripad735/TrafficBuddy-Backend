@@ -35,7 +35,7 @@ exports.getAllQueries = async (req, res) => {
     if (query_type) {
       filter.query_type = query_type;
     }
-    
+
     // Filter by division if specified (for division dashboards)
     if (division && division !== 'NOT_SPECIFIED') {
       // Handle both ObjectId and string representations
@@ -54,8 +54,14 @@ exports.getAllQueries = async (req, res) => {
       // Override any division filter - division admins can only see their own division's data
       filter.division = new mongoose.Types.ObjectId(req.user.divisionId);
       // Exclude 'Road Damage' reports for division_admin
-      filter.query_type = { $ne: 'Road Damage' };
+      if (filter.query_type !== 'Road Damage') {
+        filter.query_type = query_type || { $ne: 'Road Damage' };
+      }else{
+        filter.query_type = "UNDEFINED";
+      }
     }
+    
+    console.log(`Querying DB with filter for user ${req.user.role}:`, filter);
     
     // Search functionality
     if (search) {
@@ -72,9 +78,8 @@ exports.getAllQueries = async (req, res) => {
     const sortOptions = {};
     sortOptions[sort] = sortDirection;
     const totalQueries = await Query.countDocuments(filter);
-    
     // Execute query with pagination
-    if(aggregate === 'false' || aggregate === false){
+    if(aggregate === 'false' || aggregate === false || status){
       const queries = await Query.find(filter)
       .populate('division', 'name code')
       .sort(sortOptions)
@@ -707,7 +712,7 @@ exports.getStatsByDivision = async (req, res) => {
       });
     }
 
-    let filter = {}
+    let filter = {};
     if (division && division !== 'NOT_SPECIFIED') {
       // Handle both ObjectId and string representations
       if (mongoose.Types.ObjectId.isValid(division)) {
@@ -728,18 +733,20 @@ exports.getStatsByDivision = async (req, res) => {
       // Exclude 'Road Damage' reports for division_admin
       filter.query_type = { $ne: 'Road Damage' };
     }
-    
+
     // Get counts for each status
     const pending = await Query.countDocuments({ ...filter, status: 'Pending' });
     const inProgress = await Query.countDocuments({ ...filter, status: 'In Progress' });
     const resolved = await Query.countDocuments({ ...filter, status: 'Resolved' });
     const rejected = await Query.countDocuments({ ...filter, status: 'Rejected' });
-    
+
     // Get counts for each query type
     const trafficViolation = await Query.countDocuments({ ...filter, query_type: 'Traffic Violation' });
     const trafficCongestion = await Query.countDocuments({ ...filter, query_type: 'Traffic Congestion' });
     const accident = await Query.countDocuments({ ...filter, query_type: 'Accident' });
-    const roadDamage = await Query.countDocuments({ ...filter, query_type: 'Road Damage' });
+    const roadDamage = req.user && req.user.role === 'main_admin' 
+      ? await Query.countDocuments({ ...filter, query_type: 'Road Damage' }) 
+      : 0;
     const illegalParking = await Query.countDocuments({ ...filter, query_type: 'Illegal Parking' });
     const trafficSignalIssue = await Query.countDocuments({ ...filter, query_type: 'Traffic Signal Issue' });
     const suggestion = await Query.countDocuments({ ...filter, query_type: 'Suggestion' });
@@ -806,7 +813,7 @@ exports.getStatsByDivision = async (req, res) => {
       error: error.message
     });
   }
-}
+};
 
 // Get query statistics with division filtering
 exports.getQueryStatistics = async (req, res) => {

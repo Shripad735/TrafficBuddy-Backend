@@ -5,7 +5,7 @@ const { sendWhatsAppMessage } = require('../utils/whatsapp');
 const { authMiddleware, mainAdminOnly } = require('../services/authService');
 
 // Apply auth middleware to all query routes
-// router.use(authMiddleware);
+router.use(authMiddleware);
 
 // Get all queries with filtering and pagination
 router.get('/', authMiddleware, queryController.getAllQueries);
