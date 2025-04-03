@@ -151,14 +151,14 @@ LOCATION_OUTSIDE_JURISDICTION: {
     
     // Language selection prompt
     'LANGUAGE_PROMPT': {
-      'en': `*Welcome to Traffic Buddy!* 🚦
+      'en': `*Welcome to Traffic Buddy Pimpri Chinchwad!* 🚦
   
   Select your preferred language:
   1️⃣ English
   2️⃣ मराठी (Marathi)
   
   Reply with 1 or 2.`,
-      'mr': `*ट्रॅफिक बडी मध्ये आपले स्वागत आहे!* 🚦
+      'mr': `*ट्रॅफिक बडी पिंपरी चिंचवड मध्ये आपले स्वागत आहे!* 🚦
   
   तुमची पसंतीची भाषा निवडा:
   1️⃣ इंग्रजी (English)
