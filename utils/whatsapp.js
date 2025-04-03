@@ -21,11 +21,26 @@ exports.getTwilioClient = () => client;
  */
 exports.sendWhatsAppMessage = async (to, body) => {
   try {
-    // Ensure the 'to' number starts with 'whatsapp:+'
-    const formattedTo = to.startsWith('whatsapp:+') ? to : `whatsapp:+${to.replace(/^\+/, '')}`;
+    // Fix for duplicate whatsapp: prefix
+    let formattedTo = to.replace(/whatsapp:[ ]*(\+?)whatsapp:[ ]*(\+?)/i, 'whatsapp:+');
+    
+    // Ensure the 'to' number starts with 'whatsapp:+' and has no spaces
+    if (!formattedTo.startsWith('whatsapp:+')) {
+      // Remove any existing whatsapp: prefix
+      formattedTo = formattedTo.replace(/^whatsapp:[ ]*/i, '');
+      
+      // Remove any existing + sign
+      formattedTo = formattedTo.replace(/^\+/, '');
+      
+      // Add the correct prefix
+      formattedTo = `whatsapp:+${formattedTo}`;
+    }
+    
+    console.log(`Sending message to: ${formattedTo}`);
+    
     const message = await client.messages.create({
-      from: 'whatsapp:+14155238886', // Your Twilio WhatsApp number
-      to: formattedTo, // Fixed: Now ensures the 'to' starts with 'whatsapp:+'
+      from: 'whatsapp:+918788649885', // Your Twilio WhatsApp number
+      to: formattedTo, // Fixed: Now ensures proper formatting
       body: body
     });
     
@@ -64,7 +79,7 @@ exports.notifyDivisionOfficers = async (query, division) => {
     const reportTypes = {
       '1': 'Traffic Violation',
       '2': 'Traffic Congestion',
-      '3': 'Accident',
+      '3': 'Irregularity',
       '4': 'Road Damage',
       '5': 'Illegal Parking',
       '6': 'Traffic Signal Issue',
@@ -110,7 +125,7 @@ exports.notifyDivisionOfficers = async (query, division) => {
         // Ensure the 'to' number starts with 'whatsapp:+'
         const formattedPhone = phone.startsWith('whatsapp:+') ? phone : `whatsapp:+${phone.replace(/^\+/, '')}`;
         const message = await client.messages.create({
-          from: 'whatsapp:+14155238886',
+          from: 'whatsapp:+918788649885',
           to: formattedPhone,
           body: notificationMessage
         });

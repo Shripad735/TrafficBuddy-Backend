@@ -218,6 +218,12 @@
     urlEncodedData.append('userId', userId);
     urlEncodedData.append('reportType', reportType);
     
+    // IMPORTANT: Add the linkId if available
+    const linkId = urlParams.get('linkId');
+    if (linkId) {
+        urlEncodedData.append('linkId', linkId);
+    }
+    
     // Only add location if available
     if (latitude && longitude) {
         urlEncodedData.append('latitude', latitude);
@@ -267,7 +273,7 @@
                     
                     // Redirect to WhatsApp quickly
                     redirectTimeout = setTimeout(() => {
-                        window.location.href = 'https://wa.me/14155238886';
+                        window.location.href = 'https://wa.me/918788649885';
                     }, 1000);
                 }, 300);
                 

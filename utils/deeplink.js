@@ -1,5 +1,7 @@
 const DEEP_LINK_URL = 'gpsmapcamera://open';
 const PLAY_STORE_LINK = 'https://play.google.com/store/apps/details?id=com.gpsmapcamera.geotagginglocationonphoto';
+const crypto = require('crypto');
+const ReportLink = require('../models/ReportLink');
 
 module.exports = {
   /**
@@ -45,22 +47,50 @@ Play Store: ${PLAY_STORE_LINK}`;
   },
   
   /**
-   * Generate a URL for capture with user ID and report type parameters
-   * @param {string} userId - The user's ID
-   * @param {string} reportType - The type of report being created
-   * @returns {string} The capture URL with query parameters
-   */
-  getCaptureUrl: (userId, reportType) => {
-    const encodedUserId = encodeURIComponent(userId);
-  
-  // For suggestions, use the suggestion-capture.html page
-  if (reportType === '7') {
-    return `${process.env.SERVER_URL}/suggestion-capture.html?userId=${encodedUserId}&reportType=${reportType}`;
+ * Generate a URL for capture with user ID and report type parameters
+ * @param {string} userId - The user's ID
+ * @param {string} reportType - The type of report being created
+ * @returns {string} The capture URL with query parameters
+ */
+getCaptureUrl: async function(userId, reportType) {
+  try {
+    console.log('Creating capture URL for:', { userId, reportType });
+    
+    // Generate a unique linkId
+    const linkId = crypto.randomBytes(16).toString('hex');
+    console.log('Generated linkId:', linkId);
+    
+    // Clean userId consistently
+    const cleanUserId = userId.replace(/whatsapp:[ ]*/i, '').replace(/^\+/, '');
+    console.log('Cleaned userId for storage:', cleanUserId);
+    
+    // Store the link in database
+    const newLink = new ReportLink({
+      linkId,
+      userId: cleanUserId,
+      reportType,
+      createdAt: new Date()
+    });
+    
+    await newLink.save();
+    console.log('Saved link to database:', newLink);
+    
+    // Get the server URL from environment
+    const serverUrl = process.env.SERVER_URL || 'https://yourserver.com';
+    
+    // Use suggestion-capture.html for suggestion reports (type 7)
+    // and regular capture.html for all other types
+    const capturePageUrl = reportType === '7' 
+      ? `${serverUrl}/suggestion-capture.html` 
+      : `${serverUrl}/capture.html`;
+    
+    // Use the original userId in URL for consistency with WhatsApp
+    return `${capturePageUrl}?userId=${userId}&reportType=${reportType}&linkId=${linkId}`;
+  } catch (error) {
+    console.error('Error creating capture URL:', error);
+    throw error;
   }
-  
-  // For all other report types, use the regular capture page
-  return `${process.env.SERVER_URL}/capture.html?userId=${encodedUserId}&reportType=${reportType}`;
- },
+},
 
   /**
    * Get optimized instruction message with clickable capture link
