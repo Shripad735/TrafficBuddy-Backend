@@ -39,7 +39,7 @@ exports.sendWhatsAppMessage = async (to, body) => {
     console.log(`Sending message to: ${formattedTo}`);
     
     const message = await client.messages.create({
-      from: 'whatsapp:+918788649885', // Your Twilio WhatsApp number
+      from: 'whatsapp:+14155238886', // Your Twilio WhatsApp number
       to: formattedTo, // Fixed: Now ensures proper formatting
       body: body
     });
@@ -125,7 +125,7 @@ exports.notifyDivisionOfficers = async (query, division) => {
         // Ensure the 'to' number starts with 'whatsapp:+'
         const formattedPhone = phone.startsWith('whatsapp:+') ? phone : `whatsapp:+${phone.replace(/^\+/, '')}`;
         const message = await client.messages.create({
-          from: 'whatsapp:+918788649885',
+          from: 'whatsapp:+14155238886',
           to: formattedPhone,
           body: notificationMessage
         });
